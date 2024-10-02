@@ -56,7 +56,7 @@ impl Lynx {
         self.mikey.cpu_prefetch(reset_vec, &mut self.rom);
     }
 
-    pub fn load_cart_from_vec(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn load_cart_from_slice(&mut self, data: &[u8]) -> Result<(), Error> {
         trace!("Load cart");
         match Cartridge::from_vec(data) {
             Err(e) => Err(e),
@@ -67,7 +67,7 @@ impl Lynx {
         }
     }
 
-    pub fn load_rom_from_vec(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn load_rom_from_slice(&mut self, data: &[u8]) -> Result<(), Error> {
         trace!("Load rom");
         match Rom::from_vec(data) {
             Err(e) => Err(e),
