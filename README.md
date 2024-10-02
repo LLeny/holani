@@ -9,5 +9,5 @@ You can use [holani-retro](https://github.com/LLeny/holani-retro), a libretro im
 Or for developpers [holani-debug](https://github.com/LLeny/holani-debug), an Atari Lynx debugger built around holani.
 
 ## Holani embeds 6502 binary blobs
-* Free Lynx Boot Rom, courtesy of https://bjoern.spruck.net/lynx/
+* Free Lynx Boot Rom, courtesy of  http://lynxdev.atari.org
 * BLL uLoader, courtesy of https://github.com/42Bastian/new_bll/
