@@ -58,7 +58,7 @@ impl Lynx {
 
     pub fn load_cart_from_slice(&mut self, data: &[u8]) -> Result<(), Error> {
         trace!("Load cart");
-        match Cartridge::from_vec(data) {
+        match Cartridge::from_slice(data) {
             Err(e) => Err(e),
             Ok(c) => {
                 self.cart = c;
@@ -69,7 +69,7 @@ impl Lynx {
 
     pub fn load_rom_from_slice(&mut self, data: &[u8]) -> Result<(), Error> {
         trace!("Load rom");
-        match Rom::from_vec(data) {
+        match Rom::from_slice(data) {
             Err(e) => Err(e),
             Ok(r) => {
                 self.rom = r;
@@ -313,11 +313,13 @@ pub fn serialize(lynx: &Lynx, data: &mut [u8]) -> Result<(), Error> {
     }
 }
 
-pub fn deserialize(data: &[u8]) -> Result<Lynx, Error> {
-    match postcard::from_bytes(data) {
-        Err(e) => Err(Error::new(std::io::ErrorKind::InvalidData, format!("{}", e))),
-        Ok(l) => Ok(l),
-    }
+pub fn deserialize(data: &[u8], source: &Lynx) -> Result<Lynx, Error> {
+    let mut lynx = match postcard::from_bytes::<Lynx>(data) {
+        Err(e) => return Err(Error::new(std::io::ErrorKind::InvalidData, format!("{}", e))),
+        Ok(l) => l
+    };
+    lynx.cart.copy_from(&source.cart);
+    Ok(lynx)
 }
 
 pub const fn info() -> (&'static str, &'static str) {

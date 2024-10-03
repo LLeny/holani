@@ -92,6 +92,7 @@ enum CartType {
 #[derive(Serialize, Deserialize)]
 pub struct Cartridge {
     ticks_to_done: u8,
+    #[serde(skip)]
     header: LNXHeader,
     cart: CartType,
     eeprom: Option<Eeprom>,
@@ -111,7 +112,7 @@ impl Default for Cartridge {
 }
 
 impl Cartridge {
-    pub fn from_vec(data: &[u8]) -> Result<Self, Error> {
+    pub fn from_slice(data: &[u8]) -> Result<Self, Error> {
         let mut cart = Self::default();
 
         if cart.is_lnx(data) {
@@ -314,5 +315,16 @@ impl Cartridge {
             }
             _ => self.ticks_to_done -= 1,
         }
+    }
+
+    pub fn copy_from(&mut self, other: &Cartridge) {
+        self.header = other.header.clone();
+        match &other.cart {
+            CartType::Generic(from) => match &mut self.cart {
+                CartType::Generic(to) => to.copy_from(from),
+                _ => panic!("Trying to write to inexistant cart."),
+            }
+            _ => panic!("Trying to read from an inexistant cart."),
+          };
     }
 }

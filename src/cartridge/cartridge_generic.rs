@@ -11,6 +11,7 @@ pub const BLOCK_PINS: [u32; 8] = [CART_PIN_A12,CART_PIN_A13,CART_PIN_A14,CART_PI
 #[derive(Serialize, Deserialize)]
 pub struct CartridgeGeneric {
     pins: u32,
+    #[serde(skip)]
     banks: Vec<Vec<u8>>,
     addr_pins: Vec<u32>,
     block_pins: Vec<u32>,
@@ -56,6 +57,10 @@ impl CartridgeGeneric {
         self.banks[0][addr] = data;
         trace!("Write 0x{:06x} data:0x{:02x}", addr, data);
         pins
+    }
+
+    pub fn copy_from(&mut self, other: &CartridgeGeneric) {
+        self.banks = other.banks.clone();
     }
 }
 

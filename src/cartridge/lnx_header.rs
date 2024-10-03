@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct LNXHeader {
     rotation: u8,
     manufacturer: String,
@@ -83,5 +83,11 @@ impl LNXHeader {
 
     pub fn eeprom(&self) -> u8 {
         self.spare[1]
+    }
+}
+
+impl Default for LNXHeader {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -29,7 +29,7 @@ impl Default for Rom {
 }
 
 impl Rom {
-    pub fn from_vec(data: &[u8]) -> Result<Rom, Error> {
+    pub fn from_slice(data: &[u8]) -> Result<Rom, Error> {
         let mut r = Rom::default();
         if data.len() != ROM_SIZE {
             return Err(Error::new(io::ErrorKind::Other, "ROM file non valid."));
