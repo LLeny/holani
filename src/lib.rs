@@ -6,6 +6,7 @@ pub mod rom;
 pub mod suzy;
 pub mod vectors;
 pub mod consts;
+mod shared_memory;
 
 use bus::*;
 use cartridge::*;
@@ -14,6 +15,7 @@ use log::trace;
 use mikey::{video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
 use ram::*;
 use rom::Rom;
+use shared_memory::SharedMemory;
 use std::io::Error;
 use suzy::{registers::{joystick_swap, Joystick, Switches}, Suzy};
 use vectors::Vectors;
@@ -297,6 +299,14 @@ impl Lynx {
             (self.mikey.timers().peek(TIM0BKUP) + 1) as f64 // us per line
             * 105. // 105 lines
         )
+    }
+
+    pub fn ram_size(&self) -> usize {
+        RAM_MAX as usize
+    }
+
+    pub fn ram_data(&self) -> &SharedMemory {
+        self.ram.data()
     }
 }
 

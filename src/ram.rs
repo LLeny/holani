@@ -1,15 +1,16 @@
 use log::trace;
-
+use shared_memory::SharedMemory;
 use crate::*;
 use serde::{Serialize, Deserialize};
 use super::bus::*;
 use super::MMC_ADDR;
 
-const RAM_MAX: u16 = 0xffff;
+pub const RAM_MAX: u16 = 0xffff;
+
 
 #[derive(Serialize, Deserialize)]
 pub struct Ram {
-    data: Vec<u8>,
+    data: SharedMemory,
     addr_r: u16,
     data_r: u8,
     ticks_to_done: i8,
@@ -20,7 +21,7 @@ pub struct Ram {
 impl Ram {
     pub fn new() -> Ram {
         let mut r = Ram {
-            data: vec![0xFF; (RAM_MAX as usize) + 1],
+            data: SharedMemory::new((RAM_MAX as usize) + 1, 0xFF),
             ticks_to_done: -1,
             addr_r: 0,
             data_r: 0,
@@ -45,8 +46,7 @@ impl Ram {
 
     pub fn copy(&mut self, dest: u16, buf: &[u8]) {
         assert!(dest as usize + buf.len() <= RAM_MAX as usize);
-        let d = dest as usize;
-        self.data[d..(d + buf.len())].copy_from_slice(buf);
+        self.data.copy(dest, buf);
     }
 
     pub fn peek(&mut self, bus: &Bus) {
@@ -101,6 +101,10 @@ impl Ram {
 
     pub fn write(&self) -> bool {
         self.write
+    }
+
+    pub fn data(&self) -> &SharedMemory {
+        &self.data
     }
 }
 
