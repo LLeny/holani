@@ -116,11 +116,11 @@ fn config(t: Ee93cxxType) -> Ee93cxxConf {
         Ee93cxxType::C66x8 =>  Ee93cxxConf::new(512, 8, 8),
         Ee93cxxType::C76x8 =>  Ee93cxxConf::new(1024, 10, 8),
         Ee93cxxType::C86x8 =>  Ee93cxxConf::new(2048, 10, 8),
-        Ee93cxxType::C46x16 => Ee93cxxConf::new(128, 5, 16),
-        Ee93cxxType::C56x16 => Ee93cxxConf::new(256, 7, 16),
-        Ee93cxxType::C66x16 => Ee93cxxConf::new(512, 7, 16),
-        Ee93cxxType::C76x16 => Ee93cxxConf::new(1024, 9, 16),
-        Ee93cxxType::C86x16 => Ee93cxxConf::new(2048, 9, 16), 
+        Ee93cxxType::C46x16 => Ee93cxxConf::new(64, 5, 16),
+        Ee93cxxType::C56x16 => Ee93cxxConf::new(128, 7, 16),
+        Ee93cxxType::C66x16 => Ee93cxxConf::new(256, 7, 16),
+        Ee93cxxType::C76x16 => Ee93cxxConf::new(512, 9, 16),
+        Ee93cxxType::C86x16 => Ee93cxxConf::new(1024, 9, 16), 
     }
 }
 
