@@ -28,16 +28,16 @@ A page mode op-code read takes 4 ticks, a normal read or write to RAM takes 5 ti
 pub const RAM_NORMAL_READ_TICKS: i8 = 5-1;
 pub const RAM_NORMAL_WRITE_TICKS: i8 = 5-1;
 pub const RAM_PAGE_READ_TICKS: i8 = 4-1;
-pub const RAM_DMA_READ_TICKS: i8 = 2;
+pub const RAM_DMA_READ_TICKS: i8 = 3-1;
 pub const RAM_REFRESH_TICKS: u8 = 4;
 
 pub const RAM_PEEK_DATA_OPCODE: u8 = 0b00000001;
 pub const RAM_PEEK_DATA_DMA:    u8 = 0b00000010;
 
-pub const MIKEY_TIMER_READ_TICKS: u16 = 5;
-pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5;
-pub const MIKEY_READ_TICKS: u16 = 5;
-pub const MIKEY_WRITE_TICKS: u16 = 5;
+pub const MIKEY_TIMER_READ_TICKS: u16 = 5-1;
+pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5-1;
+pub const MIKEY_READ_TICKS: u16 = 5-1;
+pub const MIKEY_WRITE_TICKS: u16 = 5-1;
 
 /*
 Cycle                              Min       Max
@@ -46,19 +46,20 @@ Suzy Hardware(write)               5          5
 Suzy Hardware(read)                9         15
 */
 
-pub const SUZY_WRITE_TICKS: u16 = 5;
-pub const SUZY_READ_TICKS: u16 = 12; // ~~
+pub const SUZY_WRITE_TICKS: u16 = 5-1;
+pub const SUZY_READ_TICKS: u16 = 12-1; // ~~
 
 /* "
 Multiplies with out sign or accumulate take 44 ticks to complete.
 Multiplies with sign and accumulate take 54 ticks to complete. 
 " */
-pub const SUZY_MULT_SIGN_TICKS: u16 = 54;
-pub const SUZY_MULT_NON_SIGN_TICKS: u16 = 44;
+pub const SUZY_MULT_SIGN_TICKS: u16 = 54-1;
+pub const SUZY_MULT_NON_SIGN_TICKS: u16 = 44-1;
 
 // "The CPU cycle that performed the actual read uses 15 ticks of the clock."
-pub const CART_READ_TICKS: u8 = 7;
-pub const CART_WRITE_TICKS: u8 = 9; 
+pub const CART_READ_TICKS: u8 = 15-1;
+// "This is a blind write from the CPU and must not be interrupted by another access to Suzy until it is finished."
+pub const CART_WRITE_TICKS: u8 = SUZY_WRITE_TICKS as u8; 
 
 pub const M6502_PIN_RW: u8 = 24;
 pub const M6502_PIN_SYNC: u8 = 25;
