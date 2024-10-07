@@ -9,3 +9,5 @@ log = { version = "0.4", features = ["max_level_trace", "release_max_level_warn"
 serde = { version = "1.0", features = ["derive"] }
 postcard = {version = "1.0", features = ["experimental-derive"] }
 bitflags = { version = "2.6", features = ["serde"] }
+md5 = "0.7.0"
+lazy_static = "1.5.0"
