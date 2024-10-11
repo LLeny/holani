@@ -59,7 +59,7 @@ impl MikeyRegisters {
             cart_shift: 0,
             cart_position: 0,
             audin: 0,
-            serctl_r: SerCtlR::tx_rdy | SerCtlR::tx_empty | SerCtlR::rx_rdy,
+            serctl_r: SerCtlR::tx_rdy | SerCtlR::tx_empty,
             serctl_w: SerCtlW::empty(),
             palette: Default::default(),
         };

@@ -1,7 +1,7 @@
 pub mod cpu;
 pub mod registers;
 pub mod timers;
-mod uart;
+pub mod uart;
 pub mod video;
 
 use crate::*;
@@ -9,7 +9,7 @@ use cpu::*;
 use log::trace;
 use timers::*;
 use registers::*;
-use uart::Uart;
+use uart::{comlynx_cable::ComlynxCable, Uart};
 use video::*;
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -75,6 +75,21 @@ impl Mikey {
             bus_grant_bkp: None,
             bus_owner: MikeyBusOwner::Cpu,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.cpu = M6502::new();
+        self.cpu_stepper = M6502Stepper::default();
+        self.cpu_pins = CPUPins::default();
+        self.ticks = 0;
+        self.timers = Timers::new();
+        self.registers = MikeyRegisters::new();
+        self.video = Video::new();
+        self.video_buffer_buffer.clear();
+        self.video_buffer_curr_addr = 0;
+        self.bus_grant_bkp = None;
+        self.bus_owner = MikeyBusOwner::Cpu;
+        self.uart.reset();
     }
 
     pub fn cpu_prefetch(&mut self, pc: u16, rom: &mut Rom) {
@@ -537,6 +552,14 @@ impl Mikey {
 
     pub fn video(&self) -> &Video {
         &self.video
+    }
+
+    pub fn set_comlynx_cable(&mut self, cable: &ComlynxCable) {
+        self.uart.set_cable(cable);
+    }
+    
+    pub(crate) fn comlynx_cable(&self) -> &ComlynxCable {
+        self.uart.cable()
     }
 }
 

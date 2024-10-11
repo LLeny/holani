@@ -12,7 +12,7 @@ use bus::*;
 use cartridge::*;
 use consts::*;
 use log::trace;
-use mikey::{video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
+use mikey::{uart::comlynx_cable::ComlynxCable, video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
 use ram::*;
 use rom::Rom;
 use shared_memory::SharedMemory;
@@ -274,7 +274,7 @@ impl Lynx {
         self.ram = Ram::new();
         self.vectors = Vectors::new();
         self.suzy = Suzy::new();
-        self.mikey = Mikey::new();
+        self.mikey.reset();
         self.cart.reset();
         self.ticks = 0;
         self.last_ir_pc = 0;
@@ -307,6 +307,14 @@ impl Lynx {
 
     pub fn ram_data(&self) -> &SharedMemory {
         self.ram.data()
+    }
+
+    pub fn set_comlynx_cable(&mut self, cable: &ComlynxCable) {
+        self.mikey.set_comlynx_cable(cable);
+    }
+
+    pub fn comlynx_cable(&self) -> &ComlynxCable {
+        self.mikey.comlynx_cable()
     }
 }
 

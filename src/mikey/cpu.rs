@@ -577,7 +577,7 @@ impl M6502Stepper {
                     ps.pin_off(M6502_RES);
                 }
                 else {
-                    cpu.pc+=1;
+                    cpu.pc = cpu.pc.wrapping_add(1);
                 }
             }
         }
