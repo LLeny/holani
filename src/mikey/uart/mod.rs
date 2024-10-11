@@ -76,10 +76,6 @@ impl Uart {
             return;    
         }
 
-        if let Some(to_send) = self.transmit_register.pop() {
-            self.set_redeye_pin(to_send);
-        }
-
         if self.transmit_register.is_empty() {
             if let Some(data) = self.transmit_holding_register.take() { 
                 trace!("[{}]Transmitting 0x{:02X}", self.rand, data);
@@ -90,6 +86,10 @@ impl Uart {
             if self.transmit_holding_register.is_none() {
                 regs.serctl_r_enable_flag(SerCtlR::tx_empty);
             }
+        }
+
+        if let Some(to_send) = self.transmit_register.pop() {
+            self.set_redeye_pin(to_send);
         }
     }
 
@@ -169,10 +169,11 @@ impl Uart {
                 if self.receive_register.is_some() {
                     trace!("[{}]Overrun", self.rand);  
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
+                } else {
+                    self.receive_register = Some(self.receive_register_buffer);
+                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                                        
                 }
-                self.receive_register = Some(self.receive_register_buffer);
                 self.receive_register_len = 0;
-                regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                                        
             }
             _ => (),
         }        
