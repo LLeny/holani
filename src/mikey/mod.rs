@@ -203,9 +203,9 @@ impl Mikey {
                 match self.registers.data(INTSET) {
                     0 => self.cpu_pins.pin_off(M6502_IRQ),
                     16 => if self.timers.timer4_interrupt_enabled() {
-                        self.cpu_pins.pin_off(M6502_IRQ);
-                    } else {
                         self.cpu_pins.pin_on(M6502_IRQ);
+                    } else {
+                        self.cpu_pins.pin_off(M6502_IRQ);
                     },
                     _ => self.cpu_pins.pin_on(M6502_IRQ),
                 }
