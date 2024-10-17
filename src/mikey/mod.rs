@@ -542,8 +542,32 @@ impl Mikey {
         &self.timers
     }
 
-    pub fn audio_sample(&self) -> i16 {
-        self.timers.audio_sample()
+    pub fn audio_sample(&self) -> (i16, i16) {
+        let audio0 = self.timers.audio_out(8) as i32;
+        let audio1 = self.timers.audio_out(9) as i32;
+        let audio2 = self.timers.audio_out(10) as i32;
+        let audio3 = self.timers.audio_out(11) as i32;
+    
+        let atten0 = self.registers.data(ATTEN_A) as i32;
+        let atten1 = self.registers.data(ATTEN_B) as i32;
+        let atten2 = self.registers.data(ATTEN_C) as i32;
+        let atten3 = self.registers.data(ATTEN_D) as i32;
+
+        let left = (
+            (audio0 * (atten0 >> 4) / 0xF) +
+            (audio1 * (atten1 >> 4) / 0xF) +
+            (audio2 * (atten2 >> 4) / 0xF) +
+            (audio3 * (atten3 >> 4) / 0xF)
+        ) << 5;
+    
+        let right = (
+            (audio0 * (atten0 & 0xF) / 0xF) +
+            (audio1 * (atten1 & 0xF) / 0xF) +
+            (audio2 * (atten2 & 0xF) / 0xF) +
+            (audio3 * (atten3 & 0xF) / 0xF)
+        ) << 5;
+
+        (left as i16, right as i16)
     }
 
     pub fn video_mut(&mut self) -> &mut Video {

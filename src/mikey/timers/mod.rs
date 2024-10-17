@@ -297,15 +297,11 @@ impl Timers {
         self.timer_triggers.sort_by_key(|ti| ti.0);
     }
 
-    fn audio_out(&self, n: usize) -> i16 {
+    pub fn audio_out(&self, n: usize) -> i16 {
         match &self.timers[n] {
             TimerType::Audio(t) => t.output() as i16,
             _ => 0
         }
-    }
-
-    pub fn audio_sample(&self) -> i16 {
-        (self.audio_out(8) + self.audio_out(9) + self.audio_out(10) + self.audio_out(11) ) << 5
     }
 }
 

@@ -285,7 +285,7 @@ impl Lynx {
         postcard::experimental::serialized_size(&self).unwrap()
     }
 
-    pub fn audio_sample(&self) -> i16 {
+    pub fn audio_sample(&self) -> (i16, i16) {
         self.mikey.audio_sample()
     }
 
