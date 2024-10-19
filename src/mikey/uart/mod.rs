@@ -94,7 +94,7 @@ impl Uart {
 
         if let Some(to_send) = self.transmit_register.pop() {
             self.set_redeye_pin(to_send);
-        }
+        } 
     }
 
     fn load_transmit_data(&mut self, mut data: u8, regs: &mut MikeyRegisters) {
@@ -152,16 +152,24 @@ impl Uart {
                 self.receive_register_len += 1;
             }
             9 => {                 
-                let par = bool_parity!(self.receive_register_buffer.count_ones() & 1 == 1);
-                if par == RedeyeStatus::High {
-                    regs.serctl_r_enable_flag(SerCtlR::par_bit);
-                } else {
-                    regs.serctl_r_disable_flag(SerCtlR::par_bit);
-                }
-                if par != redeye_status {
-                    trace!("Parity Error");
-                    regs.serctl_r_enable_flag(SerCtlR::par_err);
-                } 
+                match regs.serctl_w_is_flag_set(SerCtlW::par_en) {
+                    true => {
+                        let par = bool_parity!(self.receive_register_buffer.count_ones() & 1 == 1);
+                        if par == RedeyeStatus::High {
+                            regs.serctl_r_enable_flag(SerCtlR::par_bit);
+                        } else {
+                            regs.serctl_r_disable_flag(SerCtlR::par_bit);
+                        }
+                        if par != redeye_status {
+                            trace!("Parity Error");
+                            regs.serctl_r_enable_flag(SerCtlR::par_err);
+                        }
+                    }
+                    false => if redeye_status != bool_parity!(regs.serctl_w_is_flag_set(SerCtlW::par_even)) {
+                        trace!("Parity Error");
+                        regs.serctl_r_enable_flag(SerCtlR::par_err);
+                    }
+                }                 
                 self.receive_register_len += 1;
             }
             10 => {
@@ -201,7 +209,7 @@ impl Uart {
         regs.serctl_r_disable_flag(SerCtlR::tx_empty);
     }
 
-    fn set_redeye_pin(&mut self, status: RedeyeStatus) {
+    pub fn set_redeye_pin(&mut self, status: RedeyeStatus) {
         self.redeye_pin.set(status);
     }
 

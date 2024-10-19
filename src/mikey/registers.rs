@@ -188,11 +188,16 @@ impl MikeyRegisters {
         self.serctl_r.bits()
     }
 
-    pub fn set_serctl(&mut self, v: u8) {
+    pub fn set_serctl(&mut self, uart: &mut Uart, v: u8) {
+        let brk = self.serctl_w_is_flag_set(SerCtlW::tx_brk);
         self.serctl_w = match SerCtlW::from_bits(v) {
             Some(bits) => bits,
             None => SerCtlW::empty()
         };
+
+        if brk && !self.serctl_w_is_flag_set(SerCtlW::tx_brk) { //Set redeye to high if break has been disabled
+            uart.set_redeye_pin(uart::redeye_status::RedeyeStatus::High);
+        }
 
         if self.serctl_w_is_flag_set(SerCtlW::reset_err) {
             self.serctl_r_disable_flag(SerCtlR::par_err);

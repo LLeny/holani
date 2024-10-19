@@ -452,7 +452,7 @@ impl Mikey {
                 bus.set_status(BusStatus::PeekDone); 
             }
             MikeyInstruction::PokeSerCtl => {
-                self.registers.set_serctl(self.registers.data_r() as u8);
+                self.registers.set_serctl(&mut self.uart, self.registers.data_r() as u8);
                 self.registers.reset_ir();
                 trace!("< Poke");
                 bus.set_status(BusStatus::PokeDone); 
