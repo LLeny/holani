@@ -1,8 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[repr(u8)]
+pub enum LNXRotation {
+    #[default]
+    None = 0,
+    _270 = 1,
+    _90 = 2,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct LNXHeader {
-    rotation: u8,
+    rotation: LNXRotation,
     manufacturer: String,
     title: String,
     version: u16,
@@ -15,7 +24,7 @@ pub struct LNXHeader {
 impl LNXHeader {
     pub fn new() -> Self {
         Self {
-            rotation: 0,
+            rotation: Default::default(),
             manufacturer: "unknown".to_string(),
             title: "unknown".to_string(),
             version: 0,
@@ -25,7 +34,7 @@ impl LNXHeader {
         }
     }
 
-    pub fn rotation(&self) -> u8 {
+    pub fn rotation(&self) -> LNXRotation {
         self.rotation
     }
 
@@ -53,7 +62,7 @@ impl LNXHeader {
         &self.spare
     }
     
-    pub fn set_rotation(&mut self, rotation: u8) {
+    pub fn set_rotation(&mut self, rotation: LNXRotation) {
         self.rotation = rotation;
     }
     

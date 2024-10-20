@@ -1,12 +1,11 @@
-mod lnx_header;
-
+pub mod lnx_header;
 mod cartridge_generic;
 mod eeprom;
 mod no_intro;
 use std::io::Error;
 use cartridge_generic::*;
 use eeprom::Eeprom;
-use lnx_header::LNXHeader;
+use lnx_header::{LNXHeader, LNXRotation};
 use log::error;
 use mikey::registers::MikeyRegisters;
 use no_intro::check_no_intro;
@@ -185,6 +184,12 @@ impl Cartridge {
 
         cart.load(file_content);
         self.cart = CartType::Generic(cart);
+
+        if let Ok(cart_info) = check_no_intro(file_content) {
+            self.header.set_title(cart_info.0.to_string());
+            self.header.set_rotation(cart_info.1);
+        }
+
         self.healthy = true;
     }
 
@@ -235,7 +240,11 @@ impl Cartridge {
             Ok(m) => m,
             Err(_) => "Error".to_string()
         });
-        self.header.set_rotation(file_content[58]);
+        self.header.set_rotation(match file_content[58] {
+            1 => LNXRotation::_270,
+            2 => LNXRotation::_90,
+            _ => LNXRotation::None,
+        });
 
         self.header.set_spare(file_content[59..=63].to_vec());
     }
@@ -286,7 +295,7 @@ impl Cartridge {
         self.set_cart_pins(pins);
     }
 
-    pub fn rotation(&self) -> u8 {
+    pub fn rotation(&self) -> LNXRotation {
         self.header.rotation()
     }
 

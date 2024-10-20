@@ -11,6 +11,7 @@ mod shared_memory;
 use bus::*;
 use cartridge::*;
 use consts::*;
+use lnx_header::LNXRotation;
 use log::trace;
 use mikey::{uart::comlynx_cable::ComlynxCable, video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
 use ram::*;
@@ -217,22 +218,23 @@ impl Lynx {
 
         let mut j = Joystick::from_bits(joy).unwrap();
 
-        if !self.left_handed() {
-            j = joystick_swap(j, Joystick::up, Joystick::down);
-            j = joystick_swap(j, Joystick::left, Joystick::right);
-        } 
-
         match self.rotation() {
-            1 => {
-                j = joystick_swap(j, Joystick::up, Joystick::right);
-                j = joystick_swap(j, Joystick::down, Joystick::left);
+            LNXRotation::_270 => {
+                j = joystick_swap(j, Joystick::down, Joystick::right);
+                j = joystick_swap(j, Joystick::up, Joystick::left);
+                j = joystick_swap(j, Joystick::up, Joystick::down);
             }
-            2 => {
+            LNXRotation::_90 => {
                 j = joystick_swap(j, Joystick::up, Joystick::left);
                 j = joystick_swap(j, Joystick::down, Joystick::right);
             }
             _ => ()
         }
+        
+        if !self.left_handed() {
+            j = joystick_swap(j, Joystick::up, Joystick::down);
+            j = joystick_swap(j, Joystick::left, Joystick::right);
+        } 
 
         self.suzy.set_joystick(j.bits());
     }
@@ -252,7 +254,7 @@ impl Lynx {
 
     pub fn screen_size(&self) -> (u32, u32) {
         match self.rotation() {
-            1 | 2 => (LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH),
+            LNXRotation::_270 | LNXRotation::_90 => (LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH),
             _ => (LYNX_SCREEN_WIDTH, LYNX_SCREEN_HEIGHT)
         }
     }
@@ -261,7 +263,7 @@ impl Lynx {
         self.mikey.video().rgb_screen()
     }
 
-    pub fn rotation(&self) -> u8 {
+    pub fn rotation(&self) -> LNXRotation {
         self.cart.rotation()
     }
 
