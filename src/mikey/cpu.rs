@@ -1,6 +1,5 @@
 use std::fmt;
 use bitflags::bitflags;
-use log::trace;
 use super::*;
 
 macro_rules! IR_STEPS {
