@@ -1,7 +1,16 @@
-pub mod comlynx_cable;
+
 pub mod redeye_status;
 
-use comlynx_cable::ComlynxCable;
+#[cfg(not(feature = "comlynx_shared_memory"))]
+pub mod comlynx_cable_mutex;
+#[cfg(not(feature = "comlynx_shared_memory"))]
+use comlynx_cable_mutex::ComlynxCable;
+
+#[cfg(feature = "comlynx_shared_memory")]
+pub mod comlynx_cable_shared_memory;
+#[cfg(feature = "comlynx_shared_memory")]
+use comlynx_cable_shared_memory::ComlynxCable;
+
 use redeye_status::RedeyeStatus;
 
 use super::*;
@@ -213,6 +222,7 @@ impl Uart {
         self.redeye_pin.set(status);
     }
 
+    #[cfg(not(feature = "comlynx_shared_memory"))]
     pub fn set_cable(&mut self, cable: &ComlynxCable) {
         self.redeye_pin = cable.clone();
     }

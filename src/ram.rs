@@ -1,5 +1,5 @@
 use log::trace;
-use shared_memory::SharedMemory;
+use crate::shared_memory::SharedMemory;
 use crate::*;
 use serde::{Serialize, Deserialize};
 use super::bus::*;

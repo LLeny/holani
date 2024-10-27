@@ -13,7 +13,11 @@ use cartridge::*;
 use consts::*;
 use lnx_header::LNXRotation;
 use log::trace;
-use mikey::{uart::comlynx_cable::ComlynxCable, video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
+#[cfg(not(feature = "comlynx_shared_memory"))]
+use mikey::uart::comlynx_cable_mutex::ComlynxCable;
+#[cfg(feature = "comlynx_shared_memory")]
+use mikey::uart::comlynx_cable_shared_memory::ComlynxCable;
+use mikey::{video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
 use ram::*;
 use rom::Rom;
 use shared_memory::SharedMemory;
@@ -311,6 +315,7 @@ impl Lynx {
         self.ram.data()
     }
 
+    #[cfg(not(feature = "comlynx_shared_memory"))]
     pub fn set_comlynx_cable(&mut self, cable: &ComlynxCable) {
         self.mikey.set_comlynx_cable(cable);
     }

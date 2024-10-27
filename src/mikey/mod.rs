@@ -9,7 +9,10 @@ use cpu::*;
 use log::trace;
 use timers::*;
 use registers::*;
-use uart::{comlynx_cable::ComlynxCable, Uart};
+#[cfg(not(feature = "comlynx_shared_memory"))]
+use uart::{comlynx_cable_mutex::ComlynxCable, Uart};
+#[cfg(feature = "comlynx_shared_memory")]
+use uart::{comlynx_cable_shared_memory::ComlynxCable, Uart};
 use video::*;
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -573,6 +576,7 @@ impl Mikey {
         &self.video
     }
 
+    #[cfg(not(feature = "comlynx_shared_memory"))]
     pub fn set_comlynx_cable(&mut self, cable: &ComlynxCable) {
         self.uart.set_cable(cable);
     }
