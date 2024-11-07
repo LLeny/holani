@@ -36,7 +36,8 @@ pub struct Lynx {
     cart: Cartridge,
     ticks: u64,
     bus: Bus,
-    last_ir_pc: u16
+    last_ir_pc: u16,
+    switches_cache: Switches,
 }
 
 impl Lynx {
@@ -51,6 +52,7 @@ impl Lynx {
             ticks: 0,
             bus: Bus::default(),
             last_ir_pc: 0,
+            switches_cache: Switches::empty(),
         };
         slf.initialize();        
         slf
@@ -161,9 +163,12 @@ impl Lynx {
         self.rom.tick(&mut self.bus);
         self.vectors.tick(&mut self.bus);
         self.suzy.tick(&mut self.bus, &mut self.ram);
-        let mut switches = self.suzy.registers().switches();
-        self.cart.tick(&mut self.bus, self.mikey.registers_mut(), &mut switches);
-        self.suzy.set_switches(switches.bits());
+        let mut switches = self.switches_cache;
+        self.cart.tick(&mut self.bus, self.mikey.registers_mut(), &mut  switches);
+        if self.switches_cache != switches {
+            self.switches_cache = switches;
+            self.suzy.set_switches(switches.bits());
+        }
         self.mikey.tick(&mut self.bus, &mut self.cart);
 
         // #[cfg(debug_assertions)]
@@ -245,6 +250,7 @@ impl Lynx {
 
     pub fn set_switches_u8(&mut self, sw: u8) {
         trace!("Switches: {:08b}", sw);
+        self.switches_cache = Switches::from_bits_truncate(sw);
         self.suzy.set_switches(sw);
     }
 
@@ -252,8 +258,9 @@ impl Lynx {
         self.suzy.joystick()
     }
 
-    pub fn switches(&self) -> Switches {
-        self.suzy.switches()
+    pub fn switches(&mut self) -> Switches {
+        self.switches_cache = self.suzy.switches();
+        self.switches_cache
     }
 
     pub fn screen_size(&self) -> (u32, u32) {
