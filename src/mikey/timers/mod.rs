@@ -46,7 +46,7 @@ pub enum TimerReg {
 #[derive(Serialize, Deserialize)]
 pub struct Timers {
     timers: [TimerType; TIMER_COUNT as usize],
-    timer_triggers: [(u64, usize); TIMER_COUNT as usize],
+    timer_triggers: [u64; TIMER_COUNT as usize],
     ticks: u64,
 }
 
@@ -84,6 +84,7 @@ macro_rules! tick_timer {
 
 impl Timers {
     pub fn new() -> Self {
+       
         Self {
             timers: [
                 TimerType::Base(BaseTimer::new(0, TIMER_LINKS[0])), 
@@ -99,24 +100,12 @@ impl Timers {
                 TimerType::Audio(AudioChannelTimer::new(10, TIMER_LINKS[10])), 
                 TimerType::Audio(AudioChannelTimer::new(11, TIMER_LINKS[11])),
             ],
-            timer_triggers: [
-                (u64::MAX, 0),
-                (u64::MAX, 1),
-                (u64::MAX, 2),
-                (u64::MAX, 3),
-                (u64::MAX, 4),
-                (u64::MAX, 5),
-                (u64::MAX, 6),
-                (u64::MAX, 7),
-                (u64::MAX, 8),
-                (u64::MAX, 9),
-                (u64::MAX, 10),
-                (u64::MAX, 11),
-            ],
+            timer_triggers: [0; 12],
             ticks: 0,
         }
     }
 
+    #[inline(always)]
     fn tick_linked_timer(&mut self, timer_id: usize) -> u8 {
         match &mut self.timers[timer_id] {
             TimerType::Base(t) => tick_linked_timer!(self, t),
@@ -152,29 +141,22 @@ impl Timers {
 
     pub fn tick_all(&mut self, current_tick: u64) -> (u8, bool) { // bool: Timer 4 has a special treatment, triggered information without interrupt
         let mut int = 0;
-        let mut triggered: bool = false;
         let mut int4_triggered: bool = false;
 
         self.ticks = current_tick;
 
-        for tt in self.timer_triggers { 
-            if tt.0 <= self.ticks {
-                int |= match &mut self.timers[tt.1] {
-                    TimerType::Base(t) => tick_timer!(self, t),
-                    TimerType::Audio(t) => tick_timer!(self, t),
-                };  
-                self.update_timer_trigger_tick(tt.1);
-                if tt.1 == 4 {
-                    int4_triggered = true;
-                }
-                triggered = true;
-            } else {
-                break;
+        for id in 0..TIMER_COUNT as usize {
+            if self.timer_triggers[id] > self.ticks {
+                continue;
             }
-        };
-
-        if triggered {
-            self.sort_timers();
+            int |= match &mut self.timers[id] {
+                TimerType::Base(t) => tick_timer!(self, t),
+                TimerType::Audio(t) => tick_timer!(self, t),
+            };  
+            self.update_timer_trigger_tick(id);
+            if id == 4 {
+                int4_triggered = true;
+            }
         }
 
         (int, int4_triggered)
@@ -210,6 +192,7 @@ impl Timers {
         }
     }
 
+    #[inline(always)]
     pub fn timer4_interrupt_enabled(&self) -> bool {
         self.peek(TIM4CTLA) & CTRLA_INTERRUPT_BIT != 0
     }
@@ -246,12 +229,10 @@ impl Timers {
                 TimerReg::ControlA => {
                     t.set_control_a(v, self.ticks);
                     self.update_timer_trigger_tick(index);
-                    self.sort_timers();
                 },
                 TimerReg::Count => {
                     t.set_count(v, self.ticks);
                     self.update_timer_trigger_tick(index);
-                    self.sort_timers();
                 },
                 TimerReg::ControlB => t.set_control_b(v),
                 _ => panic!(), 
@@ -261,12 +242,10 @@ impl Timers {
                 TimerReg::ControlA => {
                     t.set_control_a(v, self.ticks);
                     self.update_timer_trigger_tick(index);
-                    self.sort_timers();
                 },
                 TimerReg::Count => {
                     t.set_count(v, self.ticks);
                     self.update_timer_trigger_tick(index);
-                    self.sort_timers();
                 },
                 TimerReg::ControlB => t.set_control_b(v),
                 TimerReg::Volume => t.set_volume(v),
@@ -277,6 +256,7 @@ impl Timers {
         }
     }
 
+    #[inline(always)]
     pub fn timer_trigger(&self, id: usize) -> u64 {
         match &self.timers[id] {
             TimerType::Base(t) => t.next_trigger_tick(),
@@ -284,19 +264,16 @@ impl Timers {
         }
     }
 
+    #[inline(always)]
     fn update_timer_trigger_tick(&mut self, id: usize) {
-        let loc = self.timer_triggers.iter().position(|kv| kv.1 == id).unwrap();
         let tick = match &self.timers[id] {
             TimerType::Base(t) => t.next_trigger_tick(),
             TimerType::Audio(t) => t.next_trigger_tick(),
         };
-        self.timer_triggers[loc].0 = tick;
+        self.timer_triggers[id] = tick;
     }
 
-    fn sort_timers(&mut self) {
-        self.timer_triggers.sort_by_key(|ti| ti.0);
-    }
-
+    #[inline(always)]
     pub fn audio_out(&self, n: usize) -> i16 {
         match &self.timers[n] {
             TimerType::Audio(t) => t.output() as i16,
