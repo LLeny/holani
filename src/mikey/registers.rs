@@ -3,6 +3,34 @@ use bitflags::bitflags;
 use crate::{DISPADR, MIK_ADDR};
 use super::*;
 
+macro_rules! atten_left{
+    ($attn_buff: ident, $channel: expr, $regs: expr) => {
+        if ($regs.data(MSTEREO) & (0x10<<$channel)) == 0 {
+            if ($regs.data(MPAN) & (0x10<<$channel)) != 0 {
+                ($regs.data($attn_buff) >> 4) as f32 / 15f32
+            } else {
+                0.
+            }            
+        } else {
+            1f32
+        }        
+    };
+}
+
+macro_rules! atten_right{
+    ($attn_buff: ident, $channel: expr, $regs: expr) => {
+        if ($regs.data(MSTEREO) & (1<<$channel)) == 0 {
+            if ($regs.data(MPAN) & (1<<$channel)) != 0 {
+                ($regs.data($attn_buff) & 0xF) as f32 / 15f32
+            } else {
+                0.
+            }            
+        } else {
+            1f32
+        }          
+    };
+}
+
 bitflags! {
     #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
     pub struct SerCtlW:u8
@@ -46,6 +74,8 @@ pub struct MikeyRegisters {
     serctl_r: SerCtlR,
     serctl_w: SerCtlW,
     palette: [[u8; 3]; 16],
+    attenuation_left: [f32; 4],
+    attenuation_right: [f32; 4],
 }
 
 impl MikeyRegisters {
@@ -62,6 +92,8 @@ impl MikeyRegisters {
             serctl_r: SerCtlR::tx_rdy | SerCtlR::tx_empty,
             serctl_w: SerCtlW::empty(),
             palette: Default::default(),
+            attenuation_left: [0.; 4],
+            attenuation_right: [0.; 4],
         };
         for i in 0..16 {
             slf.set_data(GREEN0+i, 0xff);
@@ -71,6 +103,7 @@ impl MikeyRegisters {
         slf.set_data(ATTEN_B, 0xFF);
         slf.set_data(ATTEN_C, 0xFF);
         slf.set_data(ATTEN_D, 0xFF);
+        slf.update_attenuations();
         slf
     }
 
@@ -234,6 +267,26 @@ impl MikeyRegisters {
 
     pub fn serctl_w_is_flag_set(&self, flag: SerCtlW) -> bool {
         self.serctl_w.contains(flag)
+    }
+
+    pub fn update_attenuations(&mut self) {
+        self.attenuation_left[0] = atten_left!(ATTEN_A, 0, self);
+        self.attenuation_left[1] = atten_left!(ATTEN_B, 1, self);
+        self.attenuation_left[2] = atten_left!(ATTEN_C, 2, self);
+        self.attenuation_left[3] = atten_left!(ATTEN_D, 3, self);
+
+        self.attenuation_right[0] = atten_right!(ATTEN_A, 0, self);
+        self.attenuation_right[1] = atten_right!(ATTEN_B, 1, self);
+        self.attenuation_right[2] = atten_right!(ATTEN_C, 2, self);
+        self.attenuation_right[3] = atten_right!(ATTEN_D, 3, self);
+    }
+
+    pub fn attenuation_left(&self, i: usize) -> f32 {
+        self.attenuation_left[i]
+    }
+
+    pub fn attenuation_right(&self, i: usize) -> f32 {
+        self.attenuation_right[i]
     }
 }
 

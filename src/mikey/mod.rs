@@ -35,7 +35,8 @@ pub enum MikeyInstruction {
     PokeSerCtl,
     PeekSerDat,
     PokeSerDat,  
-    PokePbkup,  
+    PokePbkup,
+    PokeChangeAttenuation,
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -364,6 +365,12 @@ impl Mikey {
                 self.registers.set_ir(MikeyInstruction::PokePbkup);
                 self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
             }
+            ATTEN_A..=MSTEREO => {
+                self.registers.set_addr_r(addr);
+                self.registers.set_data_r(bus.data() as u16);
+                self.registers.set_ir(MikeyInstruction::PokeChangeAttenuation);
+                self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
+            }
             _ => {
                 self.registers.set_addr_r(addr);
                 self.registers.set_data_r(bus.data() as u16);
@@ -385,6 +392,12 @@ impl Mikey {
             }
             MikeyInstruction::Poke => { 
                 self.registers.set_data(self.registers.addr_r(), self.registers.data_r() as u8); 
+                bus.set_status(BusStatus::PokeDone); 
+                self.registers.reset_ir(); 
+            }
+            MikeyInstruction::PokeChangeAttenuation => { 
+                self.registers.set_data(self.registers.addr_r(), self.registers.data_r() as u8); 
+                self.registers.update_attenuations();
                 bus.set_status(BusStatus::PokeDone); 
                 self.registers.reset_ir(); 
             }
@@ -543,31 +556,26 @@ impl Mikey {
     }
 
     pub fn audio_sample(&self) -> (i16, i16) {
-        let audio0 = self.timers.audio_out(8) as i32;
-        let audio1 = self.timers.audio_out(9) as i32;
-        let audio2 = self.timers.audio_out(10) as i32;
-        let audio3 = self.timers.audio_out(11) as i32;
+        let audio0 = self.timers.audio_out(8) as f32;
+        let audio1 = self.timers.audio_out(9) as f32;
+        let audio2 = self.timers.audio_out(10) as f32;
+        let audio3 = self.timers.audio_out(11) as f32;
+        
+        let left = ((
+            audio0 * self.registers.attenuation_left(0) +
+            audio1 * self.registers.attenuation_left(1) +
+            audio2 * self.registers.attenuation_left(2) +
+            audio3 * self.registers.attenuation_left(3)
+        ) as i32) << 5;
     
-        let atten0 = self.registers.data(ATTEN_A) as i32;
-        let atten1 = self.registers.data(ATTEN_B) as i32;
-        let atten2 = self.registers.data(ATTEN_C) as i32;
-        let atten3 = self.registers.data(ATTEN_D) as i32;
+        let right = ((
+            audio0 * self.registers.attenuation_right(0) +
+            audio1 * self.registers.attenuation_right(1) +
+            audio2 * self.registers.attenuation_right(2) +
+            audio3 * self.registers.attenuation_right(3)
+        ) as i32) << 5;
 
-        let left = (
-            (audio0 * (atten0 >> 4) / 0xF) +
-            (audio1 * (atten1 >> 4) / 0xF) +
-            (audio2 * (atten2 >> 4) / 0xF) +
-            (audio3 * (atten3 >> 4) / 0xF)
-        ) << 5;
-    
-        let right = (
-            (audio0 * (atten0 & 0xF) / 0xF) +
-            (audio1 * (atten1 & 0xF) / 0xF) +
-            (audio2 * (atten2 & 0xF) / 0xF) +
-            (audio3 * (atten3 & 0xF) / 0xF)
-        ) << 5;
-
-        (left as i16, right as i16)
+        (right as i16, left as i16)
     }
 
     pub fn video_mut(&mut self) -> &mut Video {
