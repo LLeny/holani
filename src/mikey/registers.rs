@@ -128,6 +128,7 @@ impl MikeyRegisters {
         self.palette[pen_index as usize][2] = (bluered >> 4) * 16;
     }
 
+    #[inline]
     pub fn get_pen(&self, pen_index: u8) -> &[u8; 3] {
         &self.palette[pen_index as usize]
     }

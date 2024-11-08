@@ -39,7 +39,7 @@ pub enum MikeyInstruction {
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
-enum MikeyBusOwner {
+pub enum MikeyBusOwner {
     Video,
     Refresh,
     Cpu,
@@ -144,8 +144,10 @@ impl Mikey {
         if int != 0 {
             int |= self.registers.data(INTSET);
             trace!("INTSET -> {:02X}", int);
-            self.registers.set_data(INTSET, int);
-            if !self.cpu.flags().contains(M6502Flags::I) && !bus.grant() { // wake up the cpu            
+            if !self.cpu.flags().contains(M6502Flags::I) {
+                self.registers.set_data(INTSET, int);
+            }            
+            if !bus.grant() { // wake up the cpu
                 bus.set_request(true);
             }
         }
@@ -583,6 +585,10 @@ impl Mikey {
     
     pub(crate) fn comlynx_cable(&self) -> &ComlynxCable {
         self.uart.cable()
+    }
+    
+    pub fn bus_owner(&self) -> MikeyBusOwner {
+        self.bus_owner
     }
 }
 
