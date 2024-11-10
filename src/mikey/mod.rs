@@ -144,10 +144,8 @@ impl Mikey {
 
         if int != 0 {
             int |= self.registers.data(INTSET);
-            trace!("INTSET -> {:02X}", int);
-            if !self.cpu.flags().contains(M6502Flags::I) {
-                self.registers.set_data(INTSET, int);
-            }            
+            self.registers.set_data(INTSET, int);
+            trace!("INTSET -> {:02X}", int);        
             if !bus.grant() { // wake up the cpu
                 bus.set_request(true);
             }
@@ -206,9 +204,10 @@ impl Mikey {
 
         match self.bus_owner {            
             MikeyBusOwner::Cpu => {
-                match self.registers.data(INTSET) {
-                    0 => self.cpu_pins.pin_off(M6502_IRQ),
-                    _ => self.cpu_pins.pin_on(M6502_IRQ),
+                if self.cpu.flags().contains(M6502Flags::I) || self.registers.data(INTSET) == 0 {
+                    self.cpu_pins.pin_off(M6502_IRQ);
+                } else {
+                    self.cpu_pins.pin_on(M6502_IRQ);
                 }
 
                 match bus.grant() {
