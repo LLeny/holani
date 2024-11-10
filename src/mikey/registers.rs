@@ -61,6 +61,17 @@ bitflags! {
     }
 }
 
+bitflags! {
+    #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+    pub struct DispCtl:u8
+    {
+        const color      = 0b00001000;
+        const fourbit    = 0b00000100;
+        const flip       = 0b00000010;
+        const dma_enable = 0b00000001;
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct MikeyRegisters {
     ticks_delay: u16,
@@ -73,6 +84,8 @@ pub struct MikeyRegisters {
     audin: u16,
     serctl_r: SerCtlR,
     serctl_w: SerCtlW,
+    dispctl: DispCtl,
+    is_flipped: bool,
     palette: [[u8; 3]; 16],
     attenuation_left: [f32; 4],
     attenuation_right: [f32; 4],
@@ -91,6 +104,8 @@ impl MikeyRegisters {
             audin: 0,
             serctl_r: SerCtlR::tx_rdy | SerCtlR::tx_empty,
             serctl_w: SerCtlW::empty(),
+            dispctl: DispCtl::fourbit | DispCtl::dma_enable,
+            is_flipped: false,
             palette: Default::default(),
             attenuation_left: [0.; 4],
             attenuation_right: [0.; 4],
@@ -224,6 +239,19 @@ impl MikeyRegisters {
 
     pub fn serctl(&self) -> u8 {
         self.serctl_r.bits()
+    }
+
+    pub fn dispctl(&self) -> u8 {
+        self.dispctl.bits()
+    }
+
+    pub fn set_dispctl(&mut self, v: u8) {
+        self.dispctl = DispCtl::from_bits_truncate(v);
+        self.is_flipped = self.dispctl.contains(DispCtl::flip);
+    }
+
+    pub fn is_flipped(&self) -> bool {
+        self.is_flipped
     }
 
     pub fn set_serctl(&mut self, uart: &mut Uart, v: u8) {

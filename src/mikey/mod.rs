@@ -31,6 +31,8 @@ pub enum MikeyInstruction {
     PeekIncCartRipple,
     PokeIncCartRipple,
     CpuSleep,
+    PeekDispCtl,
+    PokeDispCtl,
     PeekSerCtl,
     PokeSerCtl,
     PeekSerDat,
@@ -195,7 +197,10 @@ impl Mikey {
                         }
                         self.bus_owner = MikeyBusOwner::Refresh;
                         self.registers.set_ticks_delay(RAM_REFRESH_TICKS as u16);
-                        self.video_buffer_curr_addr = self.registers.disp_addr() + screen_pixel_base;
+                        self.video_buffer_curr_addr = match self.registers.is_flipped() {
+                            false => self.registers.disp_addr() + screen_pixel_base,
+                            true => self.registers.disp_addr() - screen_pixel_base
+                        };
                         trace!("[{}] Need pixels @ 0x{:04X} (0x{:04X}+0x{:04X})", self.ticks, self.video_buffer_curr_addr, self.registers.disp_addr(), screen_pixel_base);
                     }
                 }
@@ -226,12 +231,18 @@ impl Mikey {
             MikeyBusOwner::Video => {
                 match bus.status() {
                     BusStatus::None => {
-                        bus.set_addr(self.video_buffer_curr_addr + self.video_buffer_buffer.len() as u16);
+                        bus.set_addr(match self.registers.is_flipped() {
+                            false => self.video_buffer_curr_addr + self.video_buffer_buffer.len() as u16,
+                            true => self.video_buffer_curr_addr - self.video_buffer_buffer.len() as u16,
+                        });
                         bus.set_data(RAM_PEEK_DATA_DMA);
                         bus.set_status(BusStatus::PeekRAM);
                     }
                     BusStatus::PeekDone => {
-                        self.video_buffer_buffer.push(bus.data());
+                        self.video_buffer_buffer.push(match self.registers.is_flipped() {
+                            false => bus.data(),
+                            true => bus.data().rotate_left(4)
+                        });
                         let buffer_len = self.video_buffer_buffer.len();
                         if buffer_len == 4 {
                             self.video.push_pix_buffer(&self.video_buffer_buffer);
@@ -246,7 +257,10 @@ impl Mikey {
                             bus.set_request(false);
                             trace!("[{}] Refresh/Video done.", self.ticks);
                         } else {
-                            bus.set_addr(self.video_buffer_curr_addr + buffer_len as u16);
+                            bus.set_addr(match self.registers.is_flipped() {
+                                false => self.video_buffer_curr_addr + buffer_len as u16,
+                                true => self.video_buffer_curr_addr - buffer_len as u16,
+                            });
                             bus.set_data(RAM_PEEK_DATA_DMA);
                             bus.set_status(BusStatus::PeekRAM);
                         }                        
@@ -291,6 +305,10 @@ impl Mikey {
             SYSCTL1 => {
                 self.registers.set_addr_r(addr);
                 self.registers.set_ir(MikeyInstruction::PeekNothing);
+                self.registers.set_ticks_delay(MIKEY_READ_TICKS);
+            }
+            DISPCTL => {
+                self.registers.set_ir(MikeyInstruction::PeekDispCtl);
                 self.registers.set_ticks_delay(MIKEY_READ_TICKS);
             }
             SERCTL => {
@@ -349,6 +367,11 @@ impl Mikey {
                 self.registers.set_ir(MikeyInstruction::CpuSleep);
                 self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
             }      
+            DISPCTL => {
+                self.registers.set_data_r(bus.data() as u16);
+                self.registers.set_ir(MikeyInstruction::PokeDispCtl);
+                self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
+            }
             SERCTL => {
                 self.registers.set_data_r(bus.data() as u16);
                 self.registers.set_ir(MikeyInstruction::PokeSerCtl);
@@ -462,6 +485,18 @@ impl Mikey {
                 bus.set_grant(false);
                 bus.set_status(BusStatus::PokeDone); 
             }
+            MikeyInstruction::PeekDispCtl => {
+                bus.set_data(self.registers.dispctl()); 
+                self.registers.reset_ir();
+                trace!("< Peek");
+                bus.set_status(BusStatus::PeekDone); 
+            }
+            MikeyInstruction::PokeDispCtl => {
+                self.registers.set_dispctl(self.registers.data_r() as u8);
+                self.registers.reset_ir();
+                trace!("< Poke");
+                bus.set_status(BusStatus::PokeDone); 
+            } 
             MikeyInstruction::PeekSerCtl => {
                 bus.set_data(self.registers.serctl()); 
                 self.registers.reset_ir();
