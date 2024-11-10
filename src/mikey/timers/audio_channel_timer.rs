@@ -185,7 +185,12 @@ impl AudioChannelTimer{
                 } else {
                     self.next_trigger_tick = u64::MAX;
                 }
-                self.done();
+                if self.backup > 0 {
+                    self.done();
+                } else {
+                    self.output = 0;
+                }
+                
                 return (true, 0)
             }
             _ => ()
