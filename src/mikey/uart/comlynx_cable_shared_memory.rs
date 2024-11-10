@@ -12,11 +12,14 @@ pub struct ComlynxCable {
 impl ComlynxCable {
     pub fn new() -> Self {
         let shmem = match ShmemConf::new().size(32).flink("redeye").create() {
-            Ok(m) => m,
+            Ok(m) => {
+                unsafe { *m.as_ptr() = RedeyeStatus::High.into() };
+                m
+            },
             Err(ShmemError::LinkExists) => ShmemConf::new().flink("redeye").open().unwrap(),
             Err(e) => panic!("Unable to create or open shmem flink 'redeye' : {}", e)
         };
-        ComlynxCable { shmem }    
+        ComlynxCable { shmem }
     }
 
     pub fn status(&self) -> RedeyeStatus {
