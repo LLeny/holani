@@ -609,7 +609,7 @@ impl Mikey {
             audio3 * self.registers.attenuation_right(3)
         ) as i32) << 5;
 
-        (right as i16, left as i16)
+        (left as i16, right as i16)
     }
 
     pub fn video_mut(&mut self) -> &mut Video {

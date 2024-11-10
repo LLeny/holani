@@ -5,11 +5,11 @@ use super::*;
 
 macro_rules! atten_left{
     ($attn_buff: ident, $channel: expr, $regs: expr) => {
-        if ($regs.data(MSTEREO) & (0x10<<$channel)) == 0 {
+        if ($regs.data(MSTEREO) & (0x10<<$channel)) != 0 {
             if ($regs.data(MPAN) & (0x10<<$channel)) != 0 {
                 ($regs.data($attn_buff) >> 4) as f32 / 15f32
             } else {
-                0.25
+                0.
             }            
         } else {
             1f32
@@ -19,11 +19,11 @@ macro_rules! atten_left{
 
 macro_rules! atten_right{
     ($attn_buff: ident, $channel: expr, $regs: expr) => {
-        if ($regs.data(MSTEREO) & (1<<$channel)) == 0 {
+        if ($regs.data(MSTEREO) & (1<<$channel)) != 0 {
             if ($regs.data(MPAN) & (1<<$channel)) != 0 {
                 ($regs.data($attn_buff) & 0xF) as f32 / 15f32
             } else {
-                0.25
+                0.
             }            
         } else {
             1f32
