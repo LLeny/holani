@@ -21,6 +21,7 @@ pub struct AudioChannelTimer {
     is_linked: bool,
     count_enabled: bool,
     reload_enabled: bool,
+    disabled: bool,
 }
 
 impl AudioChannelTimer{
@@ -41,6 +42,7 @@ impl AudioChannelTimer{
             is_linked: false,
             count_enabled: false,
             reload_enabled: false,
+            disabled: false,
         }
     }
 
@@ -115,6 +117,7 @@ impl AudioChannelTimer{
     pub fn set_backup(&mut self, value: u8){
         trace!("AudioTimer #{} backup = {}.", self.id, value);
         self.backup = value;
+        self.update_disabled();
     }
 
     pub fn set_count(&mut self, value: u8, current_tick: u64){
@@ -124,6 +127,10 @@ impl AudioChannelTimer{
             self.next_trigger_tick = current_tick + self.clock_cycle.unwrap() as u64;
             trace!("AudioTimer #{} next trigger @ {}", self.id, self.next_trigger_tick);
         }
+    }
+
+    fn update_disabled(&mut self) {
+        self.disabled = self.backup == 0 && self.feedback == 1;
     }
 
     fn period(&self) -> u8 {
@@ -166,6 +173,7 @@ impl AudioChannelTimer{
     
     pub fn set_feedback(&mut self, feedback: u8) {
         self.feedback = feedback;
+        self.update_disabled();
     }
 
     pub fn is_linked(&self) -> bool {
@@ -185,11 +193,8 @@ impl AudioChannelTimer{
                 } else {
                     self.next_trigger_tick = u64::MAX;
                 }
-                if self.backup > 0 {
-                    self.done();
-                } else {
-                    self.output = 0;
-                }
+
+                self.done(); 
                 
                 return (true, 0)
             }
@@ -203,7 +208,7 @@ impl AudioChannelTimer{
             return (false, 0);
         }
 
-        if self.count_enabled { 
+        if self.count_enabled && !self.disabled { 
             return self.count_down();
         }
         (false, 0)
@@ -212,7 +217,7 @@ impl AudioChannelTimer{
     pub fn tick(&mut self, current_tick: u64) -> (bool, u8) {
         self.control_b &= !CTRLB_BORROW_IN_BIT;
         
-        if !self.count_enabled { 
+        if !self.count_enabled || self.disabled { 
             self.next_trigger_tick = u64::MAX;
             return (false, 0);
         }
