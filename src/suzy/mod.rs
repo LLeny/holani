@@ -29,7 +29,6 @@ pub enum SuzyInstruction {
 pub enum SuzyTask {
     None,
     SpriteGo,
-    RenderPixel,
     EndSprite,
     Multiply,
     Divide,
@@ -313,19 +312,11 @@ impl Suzy {
     fn process_task_step(&mut self, bus: &mut Bus, dma_ram: &mut Ram) {
 
         match self.registers.task() { 
-            SuzyTask::RenderPixel => { 
-                if !self.has_bus(bus) {
-                    return;
-                }
-                let mem_access_count = self.renderer.process_pixel(&mut self.registers, dma_ram); 
-                self.registers.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
-                self.registers.set_task(SuzyTask::SpriteGo);  
-            }           
             SuzyTask::SpriteGo => {
                 if !self.has_bus(bus) {
                     return;
                 }
-                if self.renderer.render_sprites(&mut self.registers) {
+                if self.renderer.render_sprites(&mut self.registers, dma_ram) {
                     self.registers.set_data(SPRGO, self.registers.data(SPRGO) & !(1_u8));
                     self.registers.reset_task();           
                 }

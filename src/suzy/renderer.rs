@@ -27,7 +27,6 @@ pub struct Renderer {
     pixel_height: u8,
     orig_pixel_height: u8,
     sprite_data: SpriteData,
-    hloop: u8,
     pixel: u32,
     pixel_width: u8,
     onscreen: bool,
@@ -56,7 +55,6 @@ impl Renderer {
             pixel_height: 0,
             orig_pixel_height: 0,
             sprite_data: SpriteData::new(),
-            hloop: 0,
             pixel: 0,
             pixel_width: 0,
             onscreen: false,
@@ -457,7 +455,6 @@ impl Renderer {
             self.hoff += self.hsign;
         }
         
-        self.hloop = 0;
         regs.inc_task_step();
     }
 
@@ -486,53 +483,44 @@ impl Renderer {
         }
     }
 
-    fn render_pixels_in_line(&mut self, regs: &mut SuzyRegisters) {
+    fn render_pixels_in_line(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) {
         trace!("- render_pixels_in_line.");
-        if self.hloop == 0 {
-            self.pixel = 0;
+        self.pixel = 0;
 
-            match self.sprite_data.line_get_pixel(regs, &self.data) {
-                Result::Err(_e) => { 
-                    regs.scb_peek_sprite_data();
-                    return;
-                }
-                Result::Ok(v) => self.pixel = v,
+        match self.sprite_data.line_get_pixel(regs, &self.data) {
+            Result::Err(_e) => { 
+                regs.scb_peek_sprite_data();
+                return;
             }
-    
-            if self.pixel == LINE_END {
+            Result::Ok(v) => self.pixel = v,
+        }
+
+        if self.pixel == LINE_END {
+            regs.inc_task_step();
+            return;
+        }
+
+        regs.set_u16(TMPADRL, regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0);
+        self.pixel_width = regs.data(TMPADRH);
+        regs.set_data(TMPADRH, 0);
+
+        if self.pixel_width == 0 {
+            return;
+        }
+
+        for _ in 0..self.pixel_width {
+            if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
+                self.onscreen = true;
+                self.ever_on_screen = true;
+                trace!("- RenderPixel.");    
+                let mem_access_count = self.process_pixel(regs, dma_ram); 
+                regs.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
+            }
+            else if self.onscreen {
                 regs.inc_task_step();
                 return;
             }
-
-            regs.set_u16(TMPADRL, regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0);
-            self.pixel_width = regs.data(TMPADRH);
-            regs.set_data(TMPADRH, 0);
-
-            if self.pixel_width == 0 {
-                self.hloop = 0;
-                return;
-            }
-        }
-        else {
             self.hoff += self.hsign;
-            
-            if self.hloop >= self.pixel_width {
-                self.hloop = 0;
-                return;
-            }
-        }
-
-        self.hloop += 1;
-              
-        if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
-            self.onscreen = true;
-            self.ever_on_screen = true;
-            trace!("- RenderPixel.");
-            regs.set_task(SuzyTask::RenderPixel);
-        }
-        else if self.onscreen {
-            regs.inc_task_step();
-            return;
         }
     }
    
@@ -706,7 +694,7 @@ impl Renderer {
     }
 
 
-    pub fn render_sprites(&mut self, regs: &mut SuzyRegisters) -> bool {
+    pub fn render_sprites(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) -> bool {
         match regs.task_step() {
             TaskStep::None => (),
             TaskStep::InitializePainting      => self.initialize_for_painting(regs),
@@ -715,7 +703,7 @@ impl Renderer {
             TaskStep::InitializeQuadrant      => self.initialize_quadrant_render(regs),
             TaskStep::RenderLinesStart        => self.render_lines_start(regs),
             TaskStep::RenderPixelHeightStart  => self.render_pixel_height_start(regs),
-            TaskStep::RenderPixelsInLine      => self.render_pixels_in_line(regs),
+            TaskStep::RenderPixelsInLine      => self.render_pixels_in_line(regs, dma_ram),
             TaskStep::RenderPixelheightEnd    => self.render_pixel_height_end(regs),
             TaskStep::RenderLinesEnd          => self.render_lines_end(regs),
             TaskStep::NextQuadrant            => self.end_quadrant_render(regs),
