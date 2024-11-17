@@ -16,7 +16,16 @@ impl ComlynxCable {
                 unsafe { *m.as_ptr() = RedeyeStatus::High.into() };
                 m
             },
-            Err(ShmemError::LinkExists) => ShmemConf::new().flink("redeye").open().unwrap(),
+            Err(ShmemError::LinkExists) => match ShmemConf::new().flink("redeye").open() {
+                Ok(s) => s,
+                Err(_) => match ShmemConf::new().size(32).flink("redeye").force_create_flink().create() {
+                    Ok(m) => {
+                        unsafe { *m.as_ptr() = RedeyeStatus::High.into() };
+                        m
+                    },
+                    Err(e) => panic!("Unable to create or open shmem flink 'redeye' : {}", e),
+                }
+            },
             Err(e) => panic!("Unable to create or open shmem flink 'redeye' : {}", e)
         };
         ComlynxCable { shmem }
