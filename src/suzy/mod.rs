@@ -32,7 +32,6 @@ pub enum SuzyTask {
     EndSprite,
     Multiply,
     Divide,
-    ScbPeek,
     SpriteDataPeek,
 }
 
@@ -339,20 +338,12 @@ impl Suzy {
                 self.registers.reset_task();
                 trace!("< Divide");
             } 
-            SuzyTask::ScbPeek => { 
-                if !self.has_bus(bus) {
-                    return;
-                }
-                self.renderer.push_scb_data(dma_ram.get(self.renderer.scb_curr_adr())); 
-                self.renderer.inc_scb_curr_adr();
-                self.registers.set_task(SuzyTask::SpriteGo);  
-            }            
             SuzyTask::SpriteDataPeek => { 
                 if !self.has_bus(bus) {
                     return;
                 }
                 let mut data: Vec<u8> = vec!();
-                for _ in 0..3 {
+                for _ in 0..SUZY_DATA_BUFFER_LEN {
                     data.push(dma_ram.get(self.renderer.scb_curr_adr()));
                     self.renderer.inc_scb_curr_adr();
                 }

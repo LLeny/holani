@@ -72,11 +72,11 @@ impl SpriteData {
     }
 
     pub fn push_data(&mut self, data: &[u8]) {
-        self.shift_reg <<= 24;
-        self.shift_reg |= (data[0] as u64) << 16;
-        self.shift_reg |= (data[1] as u64) << 8;
-        self.shift_reg |= data[2] as u64;
-        self.shift_reg_count += 24;
+        self.shift_reg <<= SUZY_DATA_BUFFER_LEN * 8;
+        for (i, d) in data.iter().enumerate() {
+            self.shift_reg |= (*d as u64) << ((SUZY_DATA_BUFFER_LEN * 8) - ((i as u16+1)*8));    
+        }
+        self.shift_reg_count += SUZY_DATA_BUFFER_LEN * 8;
         trace!("Push shift_reg 0x{:08x} shift_reg_count:{}", self.shift_reg, self.shift_reg_count);
     }
 
@@ -104,15 +104,7 @@ impl SpriteData {
         Some(ret)
     }
 
-    fn get_pen_index(&self, data: &[u8; 32], index: u8) -> u8 {
-        let indices: u8 = data[(index as u16 / 2 + R_PALETTE_00) as usize];
-        match index & 1 {
-            0 => indices >> 4,
-            _ => indices & 0xf,
-        }
-    }
-
-    pub fn line_get_pixel(&mut self, regs: &mut SuzyRegisters, data: &[u8; 32]) -> Result<u32, &'static str> {
+    pub fn line_get_pixel(&mut self, regs: &mut SuzyRegisters, pens: &[u8; 16]) -> Result<u32, &'static str> {
         trace!("- line_get_pixel");
         if self.shift_reg_count < 9 {
             trace!("line_get_pixel buffer too low");
@@ -146,7 +138,7 @@ impl SpriteData {
                         self.line_pixel = LINE_END;
                     } else {
                         let bits = self.get_bits(bpp).unwrap() as u8;
-                    self.line_pixel = self.get_pen_index(data, bits) as u32;
+                        self.line_pixel = pens[bits as usize] as u32;
                     }
                     self.repeat_count += 1;
                 }
@@ -162,12 +154,12 @@ impl SpriteData {
                     if self.repeat_count == 0 && self.line_pixel == 0 {
                         self.line_pixel = LINE_END;
                     } else {
-                        self.line_pixel = self.get_pen_index(data, self.line_pixel as u8) as u32;
+                        self.line_pixel = pens[self.line_pixel as usize] as u32;
                     }
                 }
                 LineType::Literal => {
                     let bits = self.get_bits(bpp).unwrap() as u8;
-                    self.line_pixel = self.get_pen_index(data, bits) as u32;
+                    self.line_pixel = pens[bits as usize] as u32;
                 }
                 LineType::Packed => (),
                 _ => return Ok(0),
@@ -183,6 +175,10 @@ impl SpriteData {
     
     pub fn set_addr(&mut self, addr: u16) {
         self.addr = addr;
+    }
+    
+    pub fn shift_reg_count(&self) -> u16 {
+        self.shift_reg_count
     }
 }
 

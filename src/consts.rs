@@ -48,7 +48,7 @@ Suzy Hardware(read)                9         15
 
 pub const SUZY_WRITE_TICKS: u16 = 5-1;
 pub const SUZY_READ_TICKS: u16 = 12-1; // ~~
-
+pub const SUZY_DATA_BUFFER_LEN: u16 = 4;
 /* "
 Multiplies with out sign or accumulate take 44 ticks to complete.
 Multiplies with sign and accumulate take 54 ticks to complete. 

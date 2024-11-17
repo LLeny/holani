@@ -1,14 +1,37 @@
-use std::fmt;
-
 use log::trace;
 use mikey::video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH};
 use suzy::*;
 use sprite_data::SpriteData;
 use crate::*;
 
+macro_rules! load_or_store_byte {
+    ($s: expr, $regs: ident, $dest: ident) => { {
+            if $s.sprite_data.shift_reg_count() < 8 {
+                $regs.scb_peek_sprite_data();
+                return;
+            }
+            let d = $s.sprite_data.get_bits(8).unwrap() as u8;
+            $regs.set_data($dest, d);
+            $s.in_idx += 1;
+    } };
+}
+
+macro_rules! load_or_store_palette {
+    ($s: expr, $regs: ident) => { {
+            if $s.sprite_data.shift_reg_count() < 8 {
+                $regs.scb_peek_sprite_data();
+                return;
+            }
+            let d = $s.sprite_data.get_bits(8).unwrap() as u8;
+            let i = (($s.in_idx - R_PALETTE_00) * 2) as usize;
+            $s.pens[i]   = d >> 4;
+            $s.pens[i+1] = d & 0xf;
+            $s.in_idx += 1;
+    } };
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Renderer {
-    data: [u8; 32],
     in_idx: u16,
     store_idx: u16,
     start_quadrant: u8,
@@ -31,12 +54,12 @@ pub struct Renderer {
     pixel_width: u8,
     onscreen: bool,
     collision: u8,
+    pens: [u8; 16]
 }
 
 impl Renderer {
     pub fn new() -> Self {
-        Self {
-            data: [0; 32],       
+        Self {   
             in_idx: 0,
             store_idx: 0,
             start_quadrant: 0,
@@ -59,92 +82,36 @@ impl Renderer {
             pixel_width: 0,
             onscreen: false,
             collision: 0,
+            pens: [0; 16]
         }
     }
 
-    pub fn data(&self, addr: u16) -> u8 {
-        self.data[addr as usize]
-    }
-
-    pub fn set_data(&mut self, addr: u16, data: u8) {
-        self.data[addr as usize] = data;
-    }
-
-    pub fn u16(&self, addr: u16) -> u16 {
-        self.data(addr) as u16 | ((self.data(addr+1) as u16) << 8)
-    }
-
-    pub fn i16(&self, addr: u16) -> i16 {
-        (self.data(addr) as u16 | ((self.data(addr+1) as u16) << 8)) as i16
-    }
-
-    pub fn scb_next(&self) -> u16 {
-        self.u16(R_SCBNEXTL)
-    }
-
-    pub fn scb_sprdata(&self) -> u16 {
-        self.u16(R_SPRDATAL)
-    }
-
-    pub fn scb_sprctl0(&self) -> u8 {
-        self.data[R_SPRCTL0 as usize]
-    }
-
-    pub fn scb_sprctl1(&self) -> u8 {
-        self.data[R_SPRCTL1 as usize]
-    }
-
-    pub fn scb_sprcoll(&self) -> u8 {
-        self.data[R_SPRCOLL as usize]
-    }
-
-    pub fn scb_hpos(&self) -> i16 {
-        self.i16(R_HPOSL)
-    }
-
-    pub fn scb_vpos(&self) -> i16 {
-        self.i16(R_VPOSL)
-    }
-
-    pub fn scb_hsize(&self) -> i16 {
-        self.i16(R_HSIZEL)
-    }
-
-    pub fn scb_vsize(&self) -> i16 {
-        self.i16(R_VSIZEL)
-    }
-
-    pub fn scb_stretch(&self) -> i16 {
-        self.i16(R_STRETCHL)
-    }
-
-    pub fn scb_tilt(&self) -> i16 {
-        self.i16(R_TILTL)
-    }
-
-    pub fn push_scb_data(&mut self, v: u8) {
-        trace!("Push SCB data idx:{} data:0x{:02x}", self.store_idx, v);
-        self.data[self.store_idx as usize] = v;
-        self.in_idx += 1;
-        self.store_idx += 1;
-    }
-
     fn initialize_for_painting(&mut self, regs: &mut SuzyRegisters) {
-        trace!("Starting sprite rendering. Renders to 0x{:04X}", regs.u16(VIDADRL));
         regs.sprsys_r_enable_flag(SprSysR::sprite_working);
         regs.sprsys_r_enable_flag(SprSysR::math_working);
 
         let firstscb = regs.sbc_next();
         regs.set_scb_addr(firstscb);
-        
-        if 0 == firstscb {
+
+        trace!("Starting sprite rendering. Renders 0x{:04X} to 0x{:04X}", firstscb, regs.u16(VIDADRL));
+       
+        if 0 == (firstscb & 0xFF00) {
             regs.set_task_step(TaskStep::MaxSteps);
             return;
         }
         
         self.store_idx = 0;
         self.in_idx = 0;
-        regs.inc_task_step();
+
+        let scbaddr = regs.scb_addr();
+        if 0 == (scbaddr & 0xFF00) {
+            trace!("Stop current sprite.");
+            self.stop_sprite_engine(regs);
+        } else {
+            self.sprite_data.reset(regs);
+            self.sprite_data.set_addr(scbaddr);
+            regs.inc_task_step();
+        }
     }
 
     fn stop_sprite_engine(&mut self, regs: &mut SuzyRegisters) {
@@ -158,109 +125,88 @@ impl Renderer {
     fn load_scb(&mut self, regs: &mut SuzyRegisters) {
         trace!("Load SCB. in: {} store: {}", self.in_idx, self.store_idx);
         match self.in_idx {
-            R_SPRCTL0 => { 
-                let scbaddr = regs.scb_addr();
-                self.sprite_data.set_addr(scbaddr);
-                if 0 == scbaddr {
-                    trace!("Stop current sprite.");
-                    self.stop_sprite_engine(regs);
-                    return;
-                }
-                regs.scb_peek_ram();
-            },
-            R_SPRCTL1..=R_SCBNEXTH   => regs.scb_peek_ram(),
-            R_SPRDATAL       => { 
-                regs.set_data(SPRCTL0, self.data[R_SPRCTL0 as usize]);
-                regs.set_data(SPRCTL1, self.data[R_SPRCTL1 as usize]);
-                regs.set_data(SPRCOLL, self.data[R_SPRCOLL as usize]);
-                regs.set_data(SCBNEXTL, self.data[R_SCBNEXTL as usize]);
-                regs.set_data(SCBNEXTH, self.data[R_SCBNEXTH as usize]);
-
+            R_SPRCTL0    => load_or_store_byte!(self, regs, SPRCTL0),
+            R_SPRCTL1    => load_or_store_byte!(self, regs, SPRCTL1),
+            R_SPRCOLL    => load_or_store_byte!(self, regs, SPRCOLL),
+            R_SCBNEXTL   => load_or_store_byte!(self, regs, SCBNEXTL),
+            R_SCBNEXTH   => load_or_store_byte!(self, regs, SCBNEXTH),
+            R_SPRDATAL   => {
+                load_or_store_byte!(self, regs, SPRDLINEL);
                 if regs.sprctl1() & SPRCTL1_SKIP_SPRITE != 0 {
                     trace!("Sprite skipped.");
                     self.in_idx = 0;
                     self.store_idx = 0;
+                    self.sprite_data.reset(regs);
                     regs.set_task_step(TaskStep::InitializePainting); // next scb if any
                 }
-                else {
-                    regs.scb_peek_ram();
-                }
-            },
-            R_SPRDATAH..=R_VPOSH   => regs.scb_peek_ram(),
-            R_HSIZEL => {
-                regs.set_data(SPRDLINEL, self.data[R_SPRDATAL as usize]);
-                regs.set_data(SPRDLINEH, self.data[R_SPRDATAH as usize]);
-                regs.set_data(HPOSSTRTL, self.data[R_HPOSL as usize]);
-                regs.set_data(HPOSSTRTH, self.data[R_HPOSH as usize]);
-                regs.set_data(VPOSSTRTL, self.data[R_VPOSL as usize]);
-                regs.set_data(VPOSSTRTH, self.data[R_VPOSH as usize]);
-
-                let sprctl1 = regs.sprctl1();
-                if sprctl1 & SPRCTL1_RELOAD_HVST == SPRCTL1_RELOAD_HVST {
-                    regs.scb_peek_ram(); 
-                }
-                else if sprctl1 & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS {                 
-                    self.in_idx += 2;
-                    regs.scb_peek_ram();
-                    
-                }
-                else if sprctl1 & SPRCTL1_RELOAD_HV == SPRCTL1_RELOAD_HV {
-                    self.in_idx += 4;
-                    regs.scb_peek_ram();
-                }
-                else {
+            }
+            R_SPRDATAH   => load_or_store_byte!(self, regs, SPRDLINEH),
+            R_HPOSL      => load_or_store_byte!(self, regs, HPOSSTRTL),
+            R_HPOSH      => load_or_store_byte!(self, regs, HPOSSTRTH),
+            R_VPOSL      => load_or_store_byte!(self, regs, VPOSSTRTL),
+            R_VPOSH      => load_or_store_byte!(self, regs, VPOSSTRTH),
+            R_HSIZEL     => {
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVST == 0 {
                     self.in_idx += 8;
+                } else {
+                    load_or_store_byte!(self, regs, SPRHSIZL);
                 }
             }
-            R_HSIZEH..=R_TILTH => regs.scb_peek_ram(),
-            R_PALETTE_00 => {
-                let sprctl1 = regs.sprctl1();
-                if sprctl1 & SPRCTL1_RELOAD_HVST == SPRCTL1_RELOAD_HVST {
-                    regs.set_data(SPRHSIZL, self.data[R_HSIZEL as usize]);
-                    regs.set_data(SPRHSIZH, self.data[R_HSIZEH as usize]);
-                    regs.set_data(SPRVSIZL, self.data[R_VSIZEL as usize]);
-                    regs.set_data(SPRVSIZH, self.data[R_VSIZEH as usize]);
-                    regs.set_data(STRETCHL, self.data[R_STRETCHL as usize]);
-                    regs.set_data(STRETCHH, self.data[R_STRETCHH as usize]);
-                    regs.set_data(TILTL,    self.data[R_TILTL as usize]);
-                    regs.set_data(TILTH,    self.data[R_TILTH as usize]);                    
-                } else if sprctl1 & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS {
-                    regs.set_data(SPRHSIZL, self.data[R_HSIZEL as usize]);
-                    regs.set_data(SPRHSIZH, self.data[R_HSIZEH as usize]);
-                    regs.set_data(SPRVSIZL, self.data[R_VSIZEL as usize]);
-                    regs.set_data(SPRVSIZH, self.data[R_VSIZEH as usize]);
-                    regs.set_data(STRETCHL, self.data[R_STRETCHL as usize]);
-                    regs.set_data(STRETCHH, self.data[R_STRETCHH as usize]);
-                    
-                } else if sprctl1 & SPRCTL1_RELOAD_HV == SPRCTL1_RELOAD_HV {
-                    regs.set_data(SPRHSIZL, self.data[R_HSIZEL as usize]);
-                    regs.set_data(SPRHSIZH, self.data[R_HSIZEH as usize]);
-                    regs.set_data(SPRVSIZL, self.data[R_VSIZEL as usize]);
-                    regs.set_data(SPRVSIZH, self.data[R_VSIZEH as usize]);
+            R_HSIZEH     => load_or_store_byte!(self, regs, SPRHSIZH),
+            R_VSIZEL     => load_or_store_byte!(self, regs, SPRVSIZL),
+            R_VSIZEH     => load_or_store_byte!(self, regs, SPRVSIZH),
+            R_STRETCHL   => {
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVS != SPRCTL1_RELOAD_HVS {
+                    self.in_idx += 4;
+                } else {
+                    load_or_store_byte!(self, regs, STRETCHL)
                 }
-
-                if sprctl1 & SPRCTL1_REUSE_PALETTE == SPRCTL1_REUSE_PALETTE {
+            }
+            R_STRETCHH   => load_or_store_byte!(self, regs, STRETCHH),
+            R_TILTL      => {
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVST != SPRCTL1_RELOAD_HVST {
+                    self.in_idx += 2;
+                } else {
+                    load_or_store_byte!(self, regs, TILTL);
+                }
+            }
+            R_TILTH      => load_or_store_byte!(self, regs, TILTH),
+            R_PALETTE_00 => {
+                if regs.sprctl1() & SPRCTL1_REUSE_PALETTE == SPRCTL1_REUSE_PALETTE {
                     trace!("End current sprite.");
                     self.in_idx = 0;
                     self.store_idx = 0;
+                    self.sprite_data.reset(regs);
                     regs.inc_task_step(); 
                 } else {
-                    self.store_idx = R_PALETTE_00;
-                    regs.scb_peek_ram();
-                }       
+                    load_or_store_palette!(self, regs);
+                }
             }
-            R_PALETTE_01..=R_PALETTE_07 => regs.scb_peek_ram(),
+            R_PALETTE_01 => load_or_store_palette!(self, regs),
+            R_PALETTE_02 => load_or_store_palette!(self, regs),
+            R_PALETTE_03 => load_or_store_palette!(self, regs),
+            R_PALETTE_04 => load_or_store_palette!(self, regs),
+            R_PALETTE_05 => load_or_store_palette!(self, regs),
+            R_PALETTE_06 => load_or_store_palette!(self, regs),
+            R_PALETTE_07 => load_or_store_palette!(self, regs),            
             _ => { 
-                regs.inc_task_step(); 
+                regs.inc_task_step();
                 self.in_idx = 0;
                 self.store_idx = 0;
-                trace!("Sprite SCB:\n{:?}", self); 
+                self.sprite_data.reset(regs);
+                trace!("End Load SCB. in: {} store: {}", self.in_idx, self.store_idx);
             }
         }
     }
 
     fn initialize_quadrants_rendering(&mut self, regs: &mut SuzyRegisters) {
-        trace!("> initialize_quadrants_rendering.");
+        trace!("> initialize_quadrants_rendering. Sprite: CTL0:{:08b} CTL1:{:08b} COLL:{:08b} NEXT:{:04X} LINE:{:04X} HPOS:{:04X} VPOS:{:04X} HSIZE:{:04X} VSIZE:{:04X} STRETCH:{:04X} TITLT:{:04X}", 
+            regs.sprctl0(), regs.sprctl1(), regs.sprcoll(),
+            regs.sbc_next(), regs.sprdline(),
+            regs.u16(HPOSSTRTL), regs.u16(VPOSSTRTL),
+            regs.u16(SPRHSIZL), regs.u16(SPRVSIZL),
+            regs.u16(STRETCHL), regs.u16(TILTL)
+        );
         self.ever_on_screen = false;
         self.collision = 0;
         self.sprite_data.set_addr(regs.sprdline());
@@ -274,8 +220,6 @@ impl Renderer {
         self.orig_hsign = if self.start_quadrant == 0 || self.start_quadrant == 1 {1} else {-1};
         self.orig_vsign = if self.start_quadrant == 0 || self.start_quadrant == 3 {1} else {-1};
         
-        trace!("> initialize_quadrants_rendering. {:?}", self);
- 
         regs.inc_task_step();
     }
 
@@ -487,7 +431,7 @@ impl Renderer {
         trace!("- render_pixels_in_line.");
         self.pixel = 0;
 
-        match self.sprite_data.line_get_pixel(regs, &self.data) {
+        match self.sprite_data.line_get_pixel(regs, &self.pens) {
             Result::Err(_e) => { 
                 regs.scb_peek_sprite_data();
                 return;
@@ -508,12 +452,12 @@ impl Renderer {
             return;
         }
 
-        for _ in 0..self.pixel_width {
+        for i in 0..self.pixel_width {
             if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
                 self.onscreen = true;
-                self.ever_on_screen = true;
-                trace!("- RenderPixel.");    
-                let mem_access_count = self.process_pixel(regs, dma_ram); 
+                self.ever_on_screen = true;                
+                let mem_access_count = self.process_pixel(regs, dma_ram) + if i % 4 == 0 { 1 } else { 0 }; 
+                trace!("- RenderPixel. {}", mem_access_count);    
                 regs.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
             }
             else if self.onscreen {
@@ -723,19 +667,6 @@ impl Renderer {
 
     pub fn inc_scb_curr_adr(&mut self) {
         self.sprite_data.set_addr(self.sprite_data.addr()+1);
-    }
-}
-
-impl fmt::Debug for Renderer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, 
-            "SPRCTL0:0x{:02x} SPRCTL1:0x{:02x} SPRCOLL:0x{:02x}\nSCBNEXT:0x{:04x} SPRDATA:0x{:04x}\nHPOS:0x{:04x} VPOS:0x{:04x}\nHSIZE:0x{:04x} VSIZE:0x{:04x}\nSTRETCH:0x{:04x} TILT:0x{:04x}",
-            self.scb_sprctl0(), self.scb_sprctl1(), self.scb_sprcoll(),
-            self.scb_next(), self.scb_sprdata(),
-            self.scb_hpos(), self.scb_vpos(),
-            self.scb_hsize(), self.scb_vsize(),
-            self.scb_stretch(), self.scb_tilt(),
-        )
     }
 }
 
