@@ -4,36 +4,17 @@ use suzy::*;
 use sprite_data::SpriteData;
 use crate::*;
 
-macro_rules! load_or_store_byte {
+macro_rules! store_buffer_byte {
     ($s: expr, $regs: ident, $dest: ident) => { {
-            if $s.sprite_data.shift_reg_count() < 8 {
-                $regs.scb_peek_sprite_data();
-                return;
-            }
-            let d = $s.sprite_data.get_bits(8).unwrap() as u8;
-            $regs.set_data($dest, d);
-            $s.in_idx += 1;
-    } };
-}
-
-macro_rules! load_or_store_palette {
-    ($s: expr, $regs: ident) => { {
-            if $s.sprite_data.shift_reg_count() < 8 {
-                $regs.scb_peek_sprite_data();
-                return;
-            }
-            let d = $s.sprite_data.get_bits(8).unwrap() as u8;
-            let i = (($s.in_idx - R_PALETTE_00) * 2) as usize;
-            $s.pens[i]   = d >> 4;
-            $s.pens[i+1] = d & 0xf;
-            $s.in_idx += 1;
+        let d = $s.sprite_data.get_bits(8).unwrap() as u8;
+        $regs.set_data($dest, d);
     } };
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Renderer {
-    in_idx: u16,
-    store_idx: u16,
+    scb_step: u8,
+    scb_pen_idx: usize,
     start_quadrant: u8,
     quadrant: u8,
     ever_on_screen: bool,
@@ -52,7 +33,6 @@ pub struct Renderer {
     sprite_data: SpriteData,
     pixel: u32,
     pixel_width: u8,
-    onscreen: bool,
     collision: u8,
     pens: [u8; 16]
 }
@@ -60,8 +40,8 @@ pub struct Renderer {
 impl Renderer {
     pub fn new() -> Self {
         Self {   
-            in_idx: 0,
-            store_idx: 0,
+            scb_step: 0,
+            scb_pen_idx: 0,
             start_quadrant: 0,
             quadrant: 0,
             ever_on_screen: false,
@@ -80,7 +60,6 @@ impl Renderer {
             sprite_data: SpriteData::new(),
             pixel: 0,
             pixel_width: 0,
-            onscreen: false,
             collision: 0,
             pens: [0; 16]
         }
@@ -100,8 +79,7 @@ impl Renderer {
             return;
         }
         
-        self.store_idx = 0;
-        self.in_idx = 0;
+        self.scb_step = 0;
 
         let scbaddr = regs.scb_addr();
         if 0 == (scbaddr & 0xFF00) {
@@ -110,92 +88,167 @@ impl Renderer {
         } else {
             self.sprite_data.reset(regs);
             self.sprite_data.set_addr(scbaddr);
+            regs.scb_peek_sprite_data();
             regs.inc_task_step();
         }
     }
 
     fn stop_sprite_engine(&mut self, regs: &mut SuzyRegisters) {
-        self.in_idx = 0;
-        self.store_idx = 0;
+        self.scb_step = 0;
         regs.sprsys_r_disable_flag(SprSysR::sprite_working);
         regs.sprsys_r_disable_flag(SprSysR::math_working);
         regs.reset_task();
     }
 
     fn load_scb(&mut self, regs: &mut SuzyRegisters) {
-        trace!("Load SCB. in: {} store: {}", self.in_idx, self.store_idx);
-        match self.in_idx {
-            R_SPRCTL0    => load_or_store_byte!(self, regs, SPRCTL0),
-            R_SPRCTL1    => load_or_store_byte!(self, regs, SPRCTL1),
-            R_SPRCOLL    => load_or_store_byte!(self, regs, SPRCOLL),
-            R_SCBNEXTL   => load_or_store_byte!(self, regs, SCBNEXTL),
-            R_SCBNEXTH   => load_or_store_byte!(self, regs, SCBNEXTH),
-            R_SPRDATAL   => {
-                load_or_store_byte!(self, regs, SPRDLINEL);
+        trace!("Load SCB. step: {}", self.scb_step);
+
+        match self.scb_step {
+            // 0 => {
+            //     store_buffer_byte!(self, regs, SPRCTL0);
+            //     store_buffer_byte!(self, regs, SPRCTL1);
+            //     store_buffer_byte!(self, regs, SPRCOLL);
+            //     store_buffer_byte!(self, regs, SCBNEXTL);
+            //     regs.scb_peek_sprite_data();
+            //     self.scb_pen_idx = 0;
+            //     self.scb_step = 1;                
+            // }
+            // 1 => {
+            //     store_buffer_byte!(self, regs, SCBNEXTH);
+            //     if regs.sprctl1() & SPRCTL1_SKIP_SPRITE != 0 {
+            //         trace!("Sprite skipped.");
+            //         self.scb_step = 0;
+            //         self.sprite_data.reset(regs);
+            //         regs.set_task_step(TaskStep::InitializePainting); // next scb if any
+            //         return;
+            //     }
+            //     store_buffer_byte!(self, regs, SPRDLINEL);
+            //     store_buffer_byte!(self, regs, SPRDLINEH);
+            //     store_buffer_byte!(self, regs, HPOSSTRTL);             
+
+            //     regs.scb_peek_sprite_data();
+            //     self.scb_step = 2;
+            // }
+            // 2 => {
+            //     store_buffer_byte!(self, regs, HPOSSTRTH);
+            //     store_buffer_byte!(self, regs, VPOSSTRTL);
+            //     store_buffer_byte!(self, regs, VPOSSTRTH);
+
+            //     if regs.sprctl1() & SPRCTL1_RELOAD_HVST == 0 {
+            //         self.scb_step = 5;
+            //         return;
+            //     }
+            //     store_buffer_byte!(self, regs, SPRHSIZL);
+            //     regs.scb_peek_sprite_data();
+            //     self.scb_step = 3;
+            // }
+            // 3 => {
+            //     store_buffer_byte!(self, regs, SPRHSIZH);
+            //     store_buffer_byte!(self, regs, SPRVSIZL);
+            //     store_buffer_byte!(self, regs, SPRVSIZH);
+            //     if regs.sprctl1() & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS {
+            //         store_buffer_byte!(self, regs, STRETCHL); 
+            //         regs.scb_peek_sprite_data();
+            //         self.scb_step = 4;
+            //     } else {
+            //         self.scb_step = 5;
+            //     }  
+            // }
+            // 4 => {
+            //     store_buffer_byte!(self, regs, STRETCHH);
+            //     if regs.sprctl1() & SPRCTL1_RELOAD_HVST == SPRCTL1_RELOAD_HVST {
+            //         store_buffer_byte!(self, regs, TILTL);
+            //         store_buffer_byte!(self, regs, TILTH);
+            //     }
+            //     self.scb_step = 5;  
+            // }
+            // 5 => {
+            //     if regs.sprctl1() & SPRCTL1_REUSE_PALETTE != SPRCTL1_REUSE_PALETTE {
+            //         while self.scb_pen_idx < 16 {
+            //             if self.sprite_data.shift_reg_count() < 8 {
+            //                 regs.scb_peek_sprite_data();
+            //                 return;
+            //             }
+            //             let d = self.sprite_data.get_bits(8).unwrap() as u8;                    
+            //             self.pens[self.scb_pen_idx] = d >> 4;
+            //             self.pens[self.scb_pen_idx+1] = d & 0xf;
+            //             self.scb_pen_idx += 2;
+            //         }
+            //     }
+            //     regs.inc_task_step();
+            //     self.scb_step = 0;
+            //     self.sprite_data.reset(regs);
+            //     trace!("End Load SCB."); 
+            // }
+            0 => {
+                store_buffer_byte!(self, regs, SPRCTL0);
+                store_buffer_byte!(self, regs, SPRCTL1);
+                store_buffer_byte!(self, regs, SPRCOLL);
+                store_buffer_byte!(self, regs, SCBNEXTL); 
+                store_buffer_byte!(self, regs, SCBNEXTH);
                 if regs.sprctl1() & SPRCTL1_SKIP_SPRITE != 0 {
                     trace!("Sprite skipped.");
-                    self.in_idx = 0;
-                    self.store_idx = 0;
+                    self.scb_step = 0;
                     self.sprite_data.reset(regs);
                     regs.set_task_step(TaskStep::InitializePainting); // next scb if any
+                    return;
                 }
-            }
-            R_SPRDATAH   => load_or_store_byte!(self, regs, SPRDLINEH),
-            R_HPOSL      => load_or_store_byte!(self, regs, HPOSSTRTL),
-            R_HPOSH      => load_or_store_byte!(self, regs, HPOSSTRTH),
-            R_VPOSL      => load_or_store_byte!(self, regs, VPOSSTRTL),
-            R_VPOSH      => load_or_store_byte!(self, regs, VPOSSTRTH),
-            R_HSIZEL     => {
+                store_buffer_byte!(self, regs, SPRDLINEL);
+                store_buffer_byte!(self, regs, SPRDLINEH);
+                store_buffer_byte!(self, regs, HPOSSTRTL);             
+
+                regs.scb_peek_sprite_data();
+                self.scb_pen_idx = 0;
+                self.scb_step = 1;
+            }            
+            1 => {
+                store_buffer_byte!(self, regs, HPOSSTRTH);
+                store_buffer_byte!(self, regs, VPOSSTRTL);
+                store_buffer_byte!(self, regs, VPOSSTRTH);
+
                 if regs.sprctl1() & SPRCTL1_RELOAD_HVST == 0 {
-                    self.in_idx += 8;
-                } else {
-                    load_or_store_byte!(self, regs, SPRHSIZL);
+                    self.scb_step = 3;
+                    return;
                 }
-            }
-            R_HSIZEH     => load_or_store_byte!(self, regs, SPRHSIZH),
-            R_VSIZEL     => load_or_store_byte!(self, regs, SPRVSIZL),
-            R_VSIZEH     => load_or_store_byte!(self, regs, SPRVSIZH),
-            R_STRETCHL   => {
-                if regs.sprctl1() & SPRCTL1_RELOAD_HVS != SPRCTL1_RELOAD_HVS {
-                    self.in_idx += 4;
+                store_buffer_byte!(self, regs, SPRHSIZL);
+                store_buffer_byte!(self, regs, SPRHSIZH);
+                store_buffer_byte!(self, regs, SPRVSIZL);
+                store_buffer_byte!(self, regs, SPRVSIZH);
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS {
+                    store_buffer_byte!(self, regs, STRETCHL); 
+                    regs.scb_peek_sprite_data();
+                    self.scb_step = 2;
                 } else {
-                    load_or_store_byte!(self, regs, STRETCHL)
-                }
+                    self.scb_step = 3;
+                }  
             }
-            R_STRETCHH   => load_or_store_byte!(self, regs, STRETCHH),
-            R_TILTL      => {
-                if regs.sprctl1() & SPRCTL1_RELOAD_HVST != SPRCTL1_RELOAD_HVST {
-                    self.in_idx += 2;
-                } else {
-                    load_or_store_byte!(self, regs, TILTL);
+            2 => {
+                store_buffer_byte!(self, regs, STRETCHH);
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVST == SPRCTL1_RELOAD_HVST {
+                    store_buffer_byte!(self, regs, TILTL);
+                    store_buffer_byte!(self, regs, TILTH);
                 }
+                self.scb_step = 3;                
             }
-            R_TILTH      => load_or_store_byte!(self, regs, TILTH),
-            R_PALETTE_00 => {
-                if regs.sprctl1() & SPRCTL1_REUSE_PALETTE == SPRCTL1_REUSE_PALETTE {
-                    trace!("End current sprite.");
-                    self.in_idx = 0;
-                    self.store_idx = 0;
-                    self.sprite_data.reset(regs);
-                    regs.inc_task_step(); 
-                } else {
-                    load_or_store_palette!(self, regs);
+            3 =>  {
+                if regs.sprctl1() & SPRCTL1_REUSE_PALETTE != SPRCTL1_REUSE_PALETTE {
+                    while self.scb_pen_idx < 16 {
+                        if self.sprite_data.shift_reg_count() < 8 {
+                            regs.scb_peek_sprite_data();
+                            return;
+                        }
+                        let d = self.sprite_data.get_bits(8).unwrap() as u8;                    
+                        self.pens[self.scb_pen_idx] = d >> 4;
+                        self.pens[self.scb_pen_idx+1] = d & 0xf;
+                        self.scb_pen_idx += 2;
+                    }
                 }
-            }
-            R_PALETTE_01 => load_or_store_palette!(self, regs),
-            R_PALETTE_02 => load_or_store_palette!(self, regs),
-            R_PALETTE_03 => load_or_store_palette!(self, regs),
-            R_PALETTE_04 => load_or_store_palette!(self, regs),
-            R_PALETTE_05 => load_or_store_palette!(self, regs),
-            R_PALETTE_06 => load_or_store_palette!(self, regs),
-            R_PALETTE_07 => load_or_store_palette!(self, regs),            
-            _ => { 
                 regs.inc_task_step();
-                self.in_idx = 0;
-                self.store_idx = 0;
+                self.scb_step = 0;
                 self.sprite_data.reset(regs);
-                trace!("End Load SCB. in: {} store: {}", self.in_idx, self.store_idx);
+                trace!("End Load SCB."); 
             }
+            _ => ()      
         }
     }
 
@@ -367,17 +420,10 @@ impl Renderer {
             return;
         } 
 
-        if self.voff < 0 || self.voff >= LYNX_SCREEN_HEIGHT as i16 {
-            regs.set_task_step(TaskStep::RenderPixelheightEnd);
-            return;
-        }
-
         if let Result::Err(_e) = self.sprite_data.initialize(regs, self.voff) { 
             regs.scb_peek_sprite_data();
             return;
         }
-
-        self.onscreen = false;
 
         let mut hposstart = regs.i16(HPOSSTRTL);
         hposstart += regs.i16(TILTACUML) >> 8 ;
@@ -423,51 +469,49 @@ impl Renderer {
         }
         else {
             self.sprite_data.reset(regs);
+            regs.scb_peek_sprite_data();
             regs.set_task_step(TaskStep::RenderPixelHeightStart); 
         }
     }
 
     fn render_pixels_in_line(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) {
         trace!("- render_pixels_in_line.");
-        self.pixel = 0;
 
-        match self.sprite_data.line_get_pixel(regs, &self.pens) {
-            Result::Err(_e) => { 
-                regs.scb_peek_sprite_data();
-                return;
-            }
-            Result::Ok(v) => self.pixel = v,
-        }
-
-        if self.pixel == LINE_END {
+        if self.voff < 0 || self.voff >= LYNX_SCREEN_HEIGHT as i16 {
             regs.inc_task_step();
             return;
         }
 
-        regs.set_u16(TMPADRL, regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0);
-        self.pixel_width = regs.data(TMPADRH);
-        regs.set_data(TMPADRH, 0);
-
-        if self.pixel_width == 0 {
-            return;
-        }
-
-        for i in 0..self.pixel_width {
-            if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
-                self.onscreen = true;
-                self.ever_on_screen = true;                
-                let mem_access_count = self.process_pixel(regs, dma_ram) + if i % 4 == 0 { 1 } else { 0 }; 
-                trace!("- RenderPixel. {}", mem_access_count);    
-                regs.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
+        for _ in 0..4 {
+            match self.sprite_data.line_get_pixel(regs, &self.pens) {
+                Result::Err(_e) => { 
+                    regs.scb_peek_sprite_data();
+                    return;
+                }
+                Result::Ok(v) => self.pixel = v,
             }
-            else if self.onscreen {
+
+            if self.pixel == LINE_END {
                 regs.inc_task_step();
                 return;
             }
-            self.hoff += self.hsign;
+
+            regs.set_u16(TMPADRL, regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0);
+            self.pixel_width = regs.data(TMPADRH);
+            regs.set_data(TMPADRH, 0);
+
+            for _ in 0..self.pixel_width {
+                if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
+                    self.ever_on_screen = true;                
+                    let mem_access_count = self.process_pixel(regs, dma_ram); 
+                    trace!("- RenderPixel. {}", mem_access_count);    
+                    regs.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
+                }
+                self.hoff += self.hsign;
+            }
         }
-    }
-   
+    }   
+
     fn write_pixel(&mut self, regs: &SuzyRegisters, dma_ram: &mut Ram, pixel: u32) -> u16 {
         let scr_addr : u16 = regs.u16(VIDADRL) + (self.hoff as u16 / 2);
 

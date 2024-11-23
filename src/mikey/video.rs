@@ -32,7 +32,7 @@ pub struct Video {
     #[serde[default="create_video_buffers"]]
     buffers: Vec<VideoBuffer>,
     draw_buffer: usize,
-    pix_buffer: u32,
+    pix_buffer: u64,
     pix_buffer_available: u8,
     redraw_requested: bool,
 }
@@ -43,7 +43,7 @@ fn create_video_buffers() -> Vec<VideoBuffer> {
 
 macro_rules! pixel {
     ($p: expr) => {
-        ($p.rotate_right(4) as u32)
+        ($p.rotate_right(4) as u64)
     };
 }
 
@@ -145,8 +145,10 @@ impl Video {
     }
 
     pub fn push_pix_buffer(&mut self, pixs: &[u8]) {
-        self.pix_buffer = pixel!(pixs[0]) | (pixel!(pixs[1]) << 8)  | (pixel!(pixs[2]) << 16) | (pixel!(pixs[3]) << 24);
-        self.pix_buffer_available = 8;
+        self.pix_buffer = 
+            pixel!(pixs[0]) | (pixel!(pixs[1]) << 8)  | (pixel!(pixs[2]) << 16) | (pixel!(pixs[3]) << 24) |
+            (pixel!(pixs[4]) << 32) | (pixel!(pixs[5]) << 40) | (pixel!(pixs[6]) << 48) | (pixel!(pixs[7]) << 56);
+        self.pix_buffer_available = 16;
         trace!("push_pix_buffer 0x{:04X}", self.pix_buffer);
     }
 

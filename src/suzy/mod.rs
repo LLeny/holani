@@ -163,7 +163,7 @@ impl Suzy {
         !bus.grant() 
     }
 
-    fn release_bus(&mut self, bus: &mut Bus) {
+    fn grant_bus(&mut self, bus: &mut Bus) {
         bus.set_grant(true);
         bus.set_request(false);
         self.request_monitor = false;
@@ -176,20 +176,17 @@ impl Suzy {
         If not, then Suzy ignores bus request and always provides bus grant. [...]
         When the bus request line comes on, Suzy will (eventually) relinquish the bus and set the bus grant line on.
         " */
-        if bus.request() && bus.request() != self.request_monitor {
-            if self.registers.data(SUZYBUSEN) == 1 {
-                self.pending_bus_request_ticks = 40; // "The time between Mikey requesting the bus and Suzy releasing it is dependant on the state of the currently running process inside of Suzy. The longest process is 30 ticks. Adding the overhead of accepting the bus request and releasing the bus grant brings the total to 40 ticks."
-                self.request_monitor = bus.request();
-            } else {
-                self.release_bus(bus);                      
-            }
+        let req = bus.request();
+        if  req && req != self.request_monitor {
+            self.pending_bus_request_ticks = SUZY_BUS_GRANT_TICKS as i8; // "The time between Mikey requesting the bus and Suzy releasing it is dependant on the state of the currently running process inside of Suzy. The longest process is 30 ticks. Adding the overhead of accepting the bus request and releasing the bus grant brings the total to 40 ticks."
+            self.request_monitor = req;
         }
     
         match self.pending_bus_request_ticks {
             -1 => (),
             0 => {
                 self.pending_bus_request_ticks = -1;
-                self.release_bus(bus); 
+                self.grant_bus(bus); 
             }
             _ => self.pending_bus_request_ticks -= 1,
         }
@@ -214,24 +211,28 @@ impl Suzy {
             return;
         }
 
-        if self.registers.task() != SuzyTask::None {
-            self.process_task_step(bus, dma_ram);
-        }
-        else if self.registers.data(SPRGO) & SPRGO_GO != 0 {
+        if self.registers.task() == SuzyTask::None && self.registers.data(SPRGO) & SPRGO_GO != 0 {
             trace!("[SPRGO] = 0x{:02x} and bus acquired.", self.registers.data(SPRGO));
             self.registers.sprsys_w_disable_flag(SprSysW::sprite_to_stop);
             self.registers.set_task(SuzyTask::SpriteGo); 
             self.registers.set_task_step(TaskStep::InitializePainting); 
-        }
+        } 
+        
+        if self.registers.task() != SuzyTask::None {
+            self.process_task_step(bus, dma_ram);
+        }        
 
         if self.has_bus(bus) && self.registers.task() == SuzyTask::None {
-            self.release_bus(bus); 
+            self.grant_bus(bus); 
         }
     }
 
     pub fn tick(&mut self, bus: &mut Bus, dma_ram: &mut Ram) {
         self.ticks += 1;       
         self.manage_bus(bus);
+        if self.registers.data(SUZYBUSEN) != 1 {
+            return;
+        }
         self.manage_ir(bus);
         self.manage_task(bus, dma_ram);        
     }

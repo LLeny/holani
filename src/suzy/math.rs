@@ -124,6 +124,7 @@ pub fn set_mathe(regs: &mut SuzyRegisters) {
     trace!("[MATHE] = 0x{:02x}", regs.data_r() as u8);
     regs.set_data(MATHE, regs.data_r() as u8);
     regs.sprsys_r_enable_flag(SprSysR::math_working);
+    // "Divides take 176 + 14*N ticks where N is the number of most significant zeros in the divisor."
     regs.set_task_ticks_delay(176_u16 + 14 * regs.np().leading_zeros() as u16);
     regs.reset_ir();
 }

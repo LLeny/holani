@@ -169,7 +169,7 @@ impl Lynx {
             self.switches_cache = switches;
             self.suzy.set_switches(switches.bits());
         }
-        self.mikey.tick(&mut self.bus, &mut self.cart);
+        self.mikey.tick(&mut self.bus, &mut self.cart, &self.ram);
 
         // #[cfg(debug_assertions)]
         // if self.last_ir_pc != self.mikey.cpu().last_ir_pc {

@@ -43,8 +43,7 @@ pub enum MikeyInstruction {
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MikeyBusOwner {
-    Video,
-    Refresh,
+    RefreshAndVideo,
     Cpu,
 }
 
@@ -60,9 +59,9 @@ pub struct Mikey {
     registers: MikeyRegisters,
     bus_owner: MikeyBusOwner,
     video: Video,
-    video_buffer_buffer: Vec<u8>,
     video_buffer_curr_addr: u16,
-    bus_grant_bkp: Option<bool>,
+    disp_addr: u16,
+    is_flipped: bool
 }
 
 impl Mikey {
@@ -76,9 +75,9 @@ impl Mikey {
             timers: Timers::new(),
             registers: MikeyRegisters::new(),
             video: Video::new(),
-            video_buffer_buffer: vec![],
             video_buffer_curr_addr: 0,
-            bus_grant_bkp: None,
+            disp_addr: 0,
+            is_flipped: false,
             bus_owner: MikeyBusOwner::Cpu,
         }
     }
@@ -91,9 +90,7 @@ impl Mikey {
         self.timers = Timers::new();
         self.registers = MikeyRegisters::new();
         self.video = Video::new();
-        self.video_buffer_buffer.clear();
         self.video_buffer_curr_addr = 0;
-        self.bus_grant_bkp = None;
         self.bus_owner = MikeyBusOwner::Cpu;
         self.uart.reset();
     }
@@ -113,7 +110,7 @@ impl Mikey {
 
         if self.cpu_pins.is_set(M6502_RW) {
             bus.set_addr(addr);
-            bus.set_data(1);//always force page mode if possible. // if self.cpu_pins.is_set(M6502_SYNC) {1} else {0});
+            bus.set_data(RAM_PEEK_DATA_OPCODE);//always force page mode if possible. // if self.cpu_pins.is_set(M6502_SYNC) {1} else {0});
             bus.set_status(BusStatus::PeekCore);
         } else {
             bus.set_addr(addr);
@@ -122,7 +119,7 @@ impl Mikey {
         }
     }
 
-    pub fn tick(&mut self, bus: &mut Bus, cart: &mut Cartridge) {
+    pub fn tick(&mut self, bus: &mut Bus, cart: &mut Cartridge, dma_ram: &Ram) {
         self.ticks += 1;
 
         let (mut int, int4_triggered) = self.timers.tick_all(self.ticks);
@@ -173,11 +170,11 @@ impl Mikey {
                 }
                 BusStatus::PokeIncCartRipple => {
                     self.registers.set_ir(MikeyInstruction::PokeIncCartRipple);
-                    self.registers.set_ticks_delay(MIKEY_READ_TICKS + MIKEY_WRITE_TICKS);
+                    self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
                 }
                 BusStatus::PeekIncCartRipple => {
                     self.registers.set_ir(MikeyInstruction::PeekIncCartRipple);
-                    self.registers.set_ticks_delay(MIKEY_READ_TICKS + MIKEY_WRITE_TICKS);
+                    self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
                 }
                 _ => ()
             }
@@ -186,20 +183,19 @@ impl Mikey {
                 if let Some(screen_pixel_base) = self.video.required_bytes() {
                     if !bus.grant() {
                         if !bus.request() {
-                            self.bus_grant_bkp = Some(false);
                             bus.set_request(true);
                             trace!("Bus grant backup false");
                         }
                     } else {
-                        if self.bus_grant_bkp.is_none() {
-                            self.bus_grant_bkp = Some(true);
-                            trace!("Bus grant backup true");
+                        if screen_pixel_base == 0 {
+                            self.disp_addr = self.registers.disp_addr();
+                            self.is_flipped = self.registers.is_flipped();
                         }
-                        self.bus_owner = MikeyBusOwner::Refresh;
-                        self.registers.set_ticks_delay(RAM_REFRESH_TICKS as u16);
-                        self.video_buffer_curr_addr = match self.registers.is_flipped() {
-                            false => self.registers.disp_addr() + screen_pixel_base,
-                            true => self.registers.disp_addr() - screen_pixel_base
+                        self.bus_owner = MikeyBusOwner::RefreshAndVideo;
+                        self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
+                        self.video_buffer_curr_addr = match self.is_flipped {
+                            false => self.disp_addr + screen_pixel_base,
+                            true => self.disp_addr - screen_pixel_base
                         };
                         trace!("[{}] Need pixels @ 0x{:04X} (0x{:04X}+0x{:04X})", self.ticks, self.video_buffer_curr_addr, self.registers.disp_addr(), screen_pixel_base);
                     }
@@ -228,50 +224,29 @@ impl Mikey {
                     self.cpu_tick(bus);
                 }
             }
-            MikeyBusOwner::Video => {
-                match bus.status() {
-                    BusStatus::None => {
-                        bus.set_addr(match self.registers.is_flipped() {
-                            false => self.video_buffer_curr_addr + self.video_buffer_buffer.len() as u16,
-                            true => self.video_buffer_curr_addr - self.video_buffer_buffer.len() as u16,
-                        });
-                        bus.set_data(RAM_PEEK_DATA_DMA);
-                        bus.set_status(BusStatus::PeekRAM);
-                    }
-                    BusStatus::PeekDone => {
-                        self.video_buffer_buffer.push(match self.registers.is_flipped() {
-                            false => bus.data(),
-                            true => bus.data().rotate_left(4)
-                        });
-                        let buffer_len = self.video_buffer_buffer.len();
-                        if buffer_len == 4 {
-                            self.video.push_pix_buffer(&self.video_buffer_buffer);
-                            self.video_buffer_buffer.clear();
-                            self.bus_owner = MikeyBusOwner::Cpu;
-                            bus.set_status(BusStatus::None);
-                            if self.bus_grant_bkp.is_some() {
-                                bus.set_grant(self.bus_grant_bkp.unwrap());
-                                trace!("Set bus grant to {}", bus.grant());
-                                self.bus_grant_bkp = None;
-                            }
-                            bus.set_request(false);
-                            trace!("[{}] Refresh/Video done.", self.ticks);
-                        } else {
-                            bus.set_addr(match self.registers.is_flipped() {
-                                false => self.video_buffer_curr_addr + buffer_len as u16,
-                                true => self.video_buffer_curr_addr - buffer_len as u16,
-                            });
-                            bus.set_data(RAM_PEEK_DATA_DMA);
-                            bus.set_status(BusStatus::PeekRAM);
-                        }                        
-                    }
-                    _ => ()
+            MikeyBusOwner::RefreshAndVideo => {
+                let mut base_addr = self.video_buffer_curr_addr as i32;
+
+                let addr_move_dir = match self.is_flipped {
+                    false => 1i32,
+                    true => -1i32,
+                };
+
+                let mut b = vec![];
+                for _ in 0..VIDEO_DMA_BUFFER_LENGTH {
+                    b.push(match self.is_flipped {
+                        false =>  dma_ram.get(base_addr as u16),
+                        true => dma_ram.get(base_addr as u16).rotate_left(4)
+                    });
+                    base_addr += addr_move_dir;
                 }
+
+                self.video.push_pix_buffer(&b);
+
+                self.bus_owner = MikeyBusOwner::Cpu;
+                bus.set_status(BusStatus::None);
+                trace!("[{}] Refresh/Video done.", self.ticks);
             },
-            MikeyBusOwner::Refresh => {
-                trace!("[{}] Refresh", self.ticks);
-                self.bus_owner = MikeyBusOwner::Video;
-            }
         }
     }
 

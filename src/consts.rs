@@ -25,19 +25,21 @@ The CPU makes use of the page mode circuitry in its op-code reads.
 All writes and all data reads are done in normal memory cycles.
 A page mode op-code read takes 4 ticks, a normal read or write to RAM takes 5 ticks."
 " */
-pub const RAM_NORMAL_READ_TICKS: i8 = 5-1;
-pub const RAM_NORMAL_WRITE_TICKS: i8 = 5-1;
-pub const RAM_PAGE_READ_TICKS: i8 = 4-1;
-pub const RAM_DMA_READ_TICKS: i8 = 3-1;
-pub const RAM_REFRESH_TICKS: u8 = 4;
+pub const RAM_NORMAL_READ_TICKS: i8 = 4;
+pub const RAM_NORMAL_WRITE_TICKS: i8 = 4;
+pub const RAM_PAGE_READ_TICKS: i8 = 3;
+pub const RAM_DMA_READ_TICKS: i8 = 4;
 
 pub const RAM_PEEK_DATA_OPCODE: u8 = 0b00000001;
 pub const RAM_PEEK_DATA_DMA:    u8 = 0b00000010;
 
-pub const MIKEY_TIMER_READ_TICKS: u16 = 5-1;
-pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5-1;
-pub const MIKEY_READ_TICKS: u16 = 5-1;
-pub const MIKEY_WRITE_TICKS: u16 = 5-1;
+pub const MIKEY_TIMER_READ_TICKS: u16 = 5;
+pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5;
+pub const MIKEY_READ_TICKS: u16 = 5;
+pub const MIKEY_WRITE_TICKS: u16 = 5;
+
+pub const REFRESH_AND_VIDEO_DMA_TICKS: u16 = 28;
+pub const VIDEO_DMA_BUFFER_LENGTH: usize = 8;
 
 /*
 Cycle                              Min       Max
@@ -46,15 +48,17 @@ Suzy Hardware(write)               5          5
 Suzy Hardware(read)                9         15
 */
 
-pub const SUZY_WRITE_TICKS: u16 = 5-1;
-pub const SUZY_READ_TICKS: u16 = 12-1; // ~~
-pub const SUZY_DATA_BUFFER_LEN: u16 = 4;
+pub const SUZY_WRITE_TICKS: u16 = 5;
+pub const SUZY_READ_TICKS: u16 = 15; // ~~
+pub const SUZY_DATA_BUFFER_LEN: u16 = 8;
+// "The longest process is 30 ticks. Adding the overhead of accepting the bus request and releasing the bus grant brings the total to 40 ticks."
+pub const SUZY_BUS_GRANT_TICKS: u16 = 10;
 /* "
 Multiplies with out sign or accumulate take 44 ticks to complete.
 Multiplies with sign and accumulate take 54 ticks to complete. 
 " */
-pub const SUZY_MULT_SIGN_TICKS: u16 = 54-1;
-pub const SUZY_MULT_NON_SIGN_TICKS: u16 = 44-1;
+pub const SUZY_MULT_SIGN_TICKS: u16 = 54;
+pub const SUZY_MULT_NON_SIGN_TICKS: u16 = 44;
 
 // "The CPU cycle that performed the actual read uses 15 ticks of the clock."
 pub const CART_READ_TICKS: u8 = 15-1;
