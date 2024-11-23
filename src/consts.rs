@@ -49,7 +49,7 @@ Suzy Hardware(read)                9         15
 */
 
 pub const SUZY_WRITE_TICKS: u16 = 5;
-pub const SUZY_READ_TICKS: u16 = 15; // ~~
+pub const SUZY_READ_TICKS: u16 = 11; // ~~
 pub const SUZY_DATA_BUFFER_LEN: u16 = 8;
 // "The longest process is 30 ticks. Adding the overhead of accepting the bus request and releasing the bus grant brings the total to 40 ticks."
 pub const SUZY_BUS_GRANT_TICKS: u16 = 10;
