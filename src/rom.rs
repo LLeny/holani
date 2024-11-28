@@ -1,5 +1,3 @@
-use std::io::{self, Error};
-
 use super::*;
 
 const ROM_SIZE: usize = 512;
@@ -29,10 +27,10 @@ impl Default for Rom {
 }
 
 impl Rom {
-    pub fn from_slice(data: &[u8]) -> Result<Rom, Error> {
+    pub fn from_slice(data: &[u8]) -> Result<Rom, &'static str> {
         let mut r = Rom::default();
         if data.len() != ROM_SIZE {
-            return Err(Error::new(io::ErrorKind::Other, "ROM file non valid."));
+            return Err("ROM file non valid.");
         }
         r.data = data.to_vec();
         Ok(r)

@@ -1,4 +1,5 @@
-use std::fmt;
+use alloc::fmt;
+
 use super::*;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -135,8 +136,8 @@ impl BaseTimer{
         self.control_b &= !CTRLB_BORROW_OUT_BIT;
         self.control_b |= CTRLB_BORROW_IN_BIT;
         match self.count.cmp(&0) {
-            std::cmp::Ordering::Greater => self.count -= 1,
-            std::cmp::Ordering::Equal => {
+            core::cmp::Ordering::Greater => self.count -= 1,
+            core::cmp::Ordering::Equal => {
                 if self.reload_enabled {
                     trace!("Timer #{} reload 0x{:02x} next trigger @ {}.", self.id, self.backup, self.next_trigger_tick);
                     self.count = self.backup;

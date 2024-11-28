@@ -1,4 +1,5 @@
-use std::{fmt, sync::{Arc, Mutex}};
+use alloc::{fmt, sync::Arc};
+use parking_lot::Mutex;
 use redeye_status::RedeyeStatus;
 use serde::{de::{self, Visitor}, Deserializer, Serializer};
 
@@ -18,11 +19,11 @@ impl ComlynxCable {
     }
 
     pub fn status(&self) -> RedeyeStatus {
-        *self.redeye_pin.lock().unwrap()
+        *self.redeye_pin.lock()
     }
 
     pub fn set(&mut self, status: RedeyeStatus) {
-        *self.redeye_pin.lock().unwrap() = status;
+        *self.redeye_pin.lock() = status;
     }
 }
 
@@ -45,7 +46,7 @@ impl Serialize for ComlynxCable {
     where
         S: Serializer,
     {
-        let v = *self.redeye_pin.lock().unwrap() as u8;
+        let v = *self.redeye_pin.lock() as u8;
         serializer.serialize_u8(v)
     }
 }
