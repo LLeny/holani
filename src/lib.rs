@@ -1,3 +1,5 @@
+#![no_std]
+
 pub mod bus;
 pub mod cartridge;
 pub mod mikey;
@@ -8,6 +10,7 @@ pub mod vectors;
 pub mod consts;
 mod shared_memory;
 
+use alloc::vec::Vec;
 use bus::*;
 use cartridge::*;
 use consts::*;
@@ -21,10 +24,12 @@ use mikey::{video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH}, Mikey};
 use ram::*;
 use rom::Rom;
 use shared_memory::SharedMemory;
-use std::io::Error;
 use suzy::{registers::{joystick_swap, Joystick, Switches}, Suzy};
 use vectors::Vectors;
 use serde::{Serialize, Deserialize};
+
+#[macro_use]
+extern crate alloc;
 
 #[derive(Serialize, Deserialize)]
 pub struct Lynx {
@@ -65,7 +70,7 @@ impl Lynx {
         self.mikey.cpu_prefetch(reset_vec, &mut self.rom);
     }
 
-    pub fn load_cart_from_slice(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn load_cart_from_slice(&mut self, data: &[u8]) -> Result<(), &'static str> {
         trace!("Load cart");
         match Cartridge::from_slice(data) {
             Err(e) => Err(e),
@@ -76,7 +81,7 @@ impl Lynx {
         }
     }
 
-    pub fn load_rom_from_slice(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn load_rom_from_slice(&mut self, data: &[u8]) -> Result<(), &'static str> {
         trace!("Load rom");
         match Rom::from_slice(data) {
             Err(e) => Err(e),
@@ -338,16 +343,16 @@ impl Default for Lynx {
     }
 }
 
-pub fn serialize(lynx: &Lynx, data: &mut [u8]) -> Result<(), Error> {
+pub fn serialize(lynx: &Lynx, data: &mut [u8]) -> Result<(), &'static str> {
     match postcard::to_slice(&lynx, data) {
-        Err(e) => Err(Error::new(std::io::ErrorKind::InvalidData, format!("{}", e))),
+        Err(_) => Err("Serialization error."),
         Ok(_) => Ok(()),
     }
 }
 
-pub fn deserialize(data: &[u8], source: &Lynx) -> Result<Lynx, Error> {
+pub fn deserialize(data: &[u8], source: &Lynx) -> Result<Lynx, &'static str> {
     let mut lynx = match postcard::from_bytes::<Lynx>(data) {
-        Err(e) => return Err(Error::new(std::io::ErrorKind::InvalidData, format!("{}", e))),
+        Err(_) => return Err("Deserialization error"),
         Ok(l) => l
     };
     lynx.cart.copy_from(&source.cart);

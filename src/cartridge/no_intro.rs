@@ -1,5 +1,5 @@
+use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
 use md5;
 
 use super::lnx_header::LNXRotation;

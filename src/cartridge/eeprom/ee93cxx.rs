@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use log::trace;
 use serde::{Deserialize, Serialize};
 use bitflags::bitflags;

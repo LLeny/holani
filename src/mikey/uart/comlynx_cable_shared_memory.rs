@@ -1,4 +1,4 @@
-use std::fmt;
+use alloc::fmt;
 use redeye_status::RedeyeStatus;
 use serde::{de::{self, Visitor}, Deserializer, Serializer};
 use ::shared_memory::{Shmem, ShmemConf, ShmemError};

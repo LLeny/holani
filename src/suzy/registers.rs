@@ -1,4 +1,3 @@
-use std::ops::Add;
 use bitflags::bitflags;
 use super::*;
 
@@ -80,13 +79,13 @@ impl TaskStep {
     pub const ONE: TaskStep = TaskStep::InitializePainting;
 }
 
-impl Add<u8> for TaskStep {
+impl core::ops::Add<u8> for TaskStep {
     type Output = Self;
     fn add(self, rhs: u8) -> Self::Output {
         let mut s = self as u8;
         s += rhs;
         s %= TaskStep::MaxSteps as u8;
-        unsafe { std::mem::transmute(s) }
+        unsafe { core::mem::transmute(s) }
     }
 }
 
@@ -676,7 +675,6 @@ mod tests {
 
     macro_rules! TJKLM {
         ($c: expr, $v: expr, $cy: expr, $wn: expr) => {
-            println!("test jklm = {}, carry = {}, warning = {}", $v as u32, $cy, $wn);
             T!($v == JKLM!($c)); 
             T!(CY!($c) == $cy); 
             T!(WN!($c) == $wn);
@@ -685,7 +683,6 @@ mod tests {
 
     macro_rules! MULT_T {
         ($c: expr, $ab: expr, $cd: expr, $exp: expr) => {
-            println!("test {} * {} = {}", $ab, $cd, $exp);
             SAB!($c, $ab as u16); 
             SCD!($c, $cd as u16); 
             MULT!($c); 
@@ -697,7 +694,6 @@ mod tests {
         ($c: expr, $efgh: expr, $np: expr) => {
             let div = if $np == 0 { u32::MAX } else { $efgh / $np };
             let mo = if $np == 0 { 0 } else { $efgh % $np };
-            println!("test {} / {} = {}, {}", $efgh, $np, div, mo);
             SEFGH!($c, $efgh as u32); 
             SNP!($c, $np as u16); 
             DIV!($c); 

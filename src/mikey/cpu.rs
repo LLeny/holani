@@ -1,4 +1,5 @@
-use std::fmt;
+extern crate alloc;
+use alloc::{boxed::Box, fmt};
 use bitflags::bitflags;
 use super::*;
 

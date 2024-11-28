@@ -2,7 +2,8 @@ pub mod lnx_header;
 mod cartridge_generic;
 mod eeprom;
 mod no_intro;
-use std::io::Error;
+
+use alloc::string::String;
 use cartridge_generic::*;
 use eeprom::Eeprom;
 use lnx_header::{LNXHeader, LNXRotation};
@@ -118,7 +119,7 @@ impl Default for Cartridge {
 }
 
 impl Cartridge {
-    pub fn from_slice(data: &[u8]) -> Result<Self, Error> {
+    pub fn from_slice(data: &[u8]) -> Result<Self, &'static str> {
         let mut cart = Self::default();
 
         if cart.is_lnx(data) {
@@ -129,7 +130,7 @@ impl Cartridge {
             cart.nointro(data);
         }
         else {
-            return Err(Error::new(std::io::ErrorKind::Other, "Couldn't identify cart file format."));
+            return Err("Couldn't identify cart file format.");
         }
         
         Ok(cart)
@@ -186,7 +187,7 @@ impl Cartridge {
         self.cart = CartType::Generic(cart);
 
         if let Ok(cart_info) = check_no_intro(file_content) {
-            self.header.set_title(cart_info.0.to_string());
+            self.header.set_title(cart_info.0.into());
             self.header.set_rotation(cart_info.1);
         }
 
@@ -234,11 +235,11 @@ impl Cartridge {
         self.header.set_version(TO_U16!(file_content[8], file_content[9]));
         self.header.set_title(match String::from_utf8(file_content[10..=41].to_vec()) {
             Ok(t) => t,
-            Err(_) => "Error".to_string()
+            Err(_) => "Error".into()
         });
         self.header.set_manufacturer(match String::from_utf8(file_content[42..=58].to_vec()) {
             Ok(m) => m,
-            Err(_) => "Error".to_string()
+            Err(_) => "Error".into()
         });
         self.header.set_rotation(match file_content[58] {
             1 => LNXRotation::_270,

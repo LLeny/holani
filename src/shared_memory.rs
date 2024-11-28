@@ -1,6 +1,7 @@
-use std::cell::UnsafeCell;
-use std::fmt;
-use std::ops::{Index, IndexMut};
+use core::cell::UnsafeCell;
+use core::ops::{Index, IndexMut};
+use alloc::fmt;
+use alloc::vec::Vec;
 use serde::de::Visitor;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

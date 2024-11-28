@@ -1,5 +1,3 @@
-use std::fmt;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -87,8 +85,8 @@ impl Default for Bus {
     }
 }
 
-impl fmt::Debug for Bus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl core::fmt::Debug for Bus {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{{ addr:{:04x} data:{:04x} status:{:?} request:{:?} grant:{:?} }}", self.addr, self.data, self.status, self.request, self.grant)
     }
 }
