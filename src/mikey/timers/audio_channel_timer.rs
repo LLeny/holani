@@ -1,5 +1,4 @@
-use std::fmt;
-
+use alloc::fmt;
 use log::trace;
 
 use super::*;
@@ -185,8 +184,8 @@ impl AudioChannelTimer{
         self.control_b &= !CTRLB_BORROW_OUT_BIT;
         self.control_b |= CTRLB_BORROW_IN_BIT;
         match self.count.cmp(&0) {
-            std::cmp::Ordering::Greater => self.count -= 1,
-            std::cmp::Ordering::Equal => {
+            core::cmp::Ordering::Greater => self.count -= 1,
+            core::cmp::Ordering::Equal => {
                 if self.reload_enabled {
                     trace!("AudioTimer #{} reload 0x{:02x}.", self.id, self.backup);
                     self.count = self.backup;

@@ -1,3 +1,4 @@
+use alloc::{string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default)]
@@ -25,8 +26,8 @@ impl LNXHeader {
     pub fn new() -> Self {
         Self {
             rotation: Default::default(),
-            manufacturer: "unknown".to_string(),
-            title: "unknown".to_string(),
+            manufacturer: "unknown".into(),
+            title: "unknown".into(),
             version: 0,
             bank0_size: 0,
             bank1_size: 0,
