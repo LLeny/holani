@@ -9,6 +9,7 @@ You can use:
 * [holani-gtk](https://github.com/LLeny/holani-gtk), a gtk4 frontend.
 * [holani-min](https://github.com/LLeny/holani-min), a command line frontend.
 * [holani-debug](https://github.com/LLeny/holani-debug), an Atari Lynx debugger built around holani.
+* [holani-tui](https://github.com/LLeny/holani-tui), a TUI frontend.
 
 ## Holani embeds 6502 binary blobs
 * Free Lynx Boot Rom, courtesy of  http://lynxdev.atari.org
