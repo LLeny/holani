@@ -105,12 +105,6 @@ impl VideoBuffer {
         self.buffer_index < RGB_SCREEN_BUFFER_LEN
     }
 
-    pub fn blend(&mut self, other: &Vec<u8>) {
-        for (dst, o) in self.rgb_buffer.iter_mut().zip(other) {
-            *dst = ((*dst as u16 + *o as u16) / 2) as u8;
-        }
-    }
-
     pub fn screen(&self) -> &Vec<u8>{
         &self.rgb_buffer
     }
@@ -164,13 +158,7 @@ impl Video {
         self.buffers[1].set_pbkup(value);
     }
 
-    fn blend(&mut self) {
-        let dis_buf = &self.buffers[1-self.draw_buffer].rgb_buffer.clone();
-        self.draw_buffer().blend(dis_buf);
-    }
-
     pub fn vsync(&mut self) {
-        self.blend();
         self.swap_buffers();
         self.draw_buffer().reset();
         self.pix_buffer_available = 0;
