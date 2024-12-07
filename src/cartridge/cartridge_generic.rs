@@ -46,7 +46,7 @@ impl CartridgeGeneric {
 
     fn read(&mut self, pins: u32) -> u32 {
         let addr = self.data_address(pins);
-        let data = self.banks[0][addr];
+        let data = *self.banks[0].get(addr).unwrap_or(&0xff);
         trace!("Read 0x{:06x} data:0x{:02x}", addr, data);
         write_data_pins(pins, data) 
     }
