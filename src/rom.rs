@@ -55,7 +55,7 @@ impl Rom {
     }
 
     pub fn peek(&mut self, bus: &Bus) {
-        if bus.data() & RAM_PEEK_DATA_OPCODE != 0 && bus.addr() & 0xff00 == self.addr_r & 0xff00 {
+        if bus.addr() & 0xff00 == self.addr_r & 0xff00 {
             self.ticks_to_done = ROM_PAGE_READ_TICKS;
         } else {
             self.ticks_to_done = ROM_NORMAL_READ_TICKS;

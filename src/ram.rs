@@ -50,9 +50,7 @@ impl Ram {
     }
 
     pub fn peek(&mut self, bus: &Bus) {
-        if bus.data() & RAM_PEEK_DATA_DMA != 0{
-            self.ticks_to_done = RAM_DMA_READ_TICKS;
-        } else if bus.data() & RAM_PEEK_DATA_OPCODE != 0 && bus.addr() & 0xff00 == self.addr_r & 0xff00 {
+        if bus.addr() & 0xff00 == self.addr_r & 0xff00 {
             self.ticks_to_done = RAM_PAGE_READ_TICKS;
             trace!("[{}] > Peek 0x{:04x} (page mode)", self.ticks, bus.addr());
         } else {

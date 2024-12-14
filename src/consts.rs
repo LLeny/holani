@@ -30,9 +30,6 @@ pub const RAM_NORMAL_WRITE_TICKS: i8 = 4;
 pub const RAM_PAGE_READ_TICKS: i8 = 3;
 pub const RAM_DMA_READ_TICKS: i8 = 3;
 
-pub const RAM_PEEK_DATA_OPCODE: u8 = 0b00000001;
-pub const RAM_PEEK_DATA_DMA:    u8 = 0b00000010;
-
 pub const MIKEY_TIMER_READ_TICKS: u16 = 5;
 pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5;
 pub const MIKEY_READ_TICKS: u16 = 5;

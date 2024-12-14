@@ -110,7 +110,6 @@ impl Mikey {
 
         if self.cpu_pins.is_set(M6502_RW) {
             bus.set_addr(addr);
-            bus.set_data(RAM_PEEK_DATA_OPCODE);//always force page mode if possible. // if self.cpu_pins.is_set(M6502_SYNC) {1} else {0});
             bus.set_status(BusStatus::PeekCore);
         } else {
             bus.set_addr(addr);
