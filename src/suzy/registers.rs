@@ -146,36 +146,44 @@ impl SuzyRegisters {
         r
     }
 
+    #[inline]
     pub fn data(&self, addr: u16) -> u8 {
         self.data[(addr - SUZ_ADDR) as usize]
     }
 
+    #[inline]
     pub fn set_data(&mut self, addr: u16, data: u8) {
         self.data[(addr - SUZ_ADDR) as usize] = data;
     }
 
+    #[inline]
     pub fn u16(&self, addr: u16) -> u16 {
         self.data(addr) as u16 | ((self.data(addr+1) as u16) << 8)
     }
 
+    #[inline]
     pub fn i16(&self, addr: u16) -> i16 {
         (self.data(addr) as u16 | ((self.data(addr+1) as u16) << 8)) as i16
     }
 
+    #[inline]
     pub fn u32(&self, addr: u16) -> u32 {
         self.data(addr) as u32 | ((self.data(addr+1) as u32) << 8) | ((self.data(addr+2) as u32) << 16) | ((self.data(addr+3) as u32) << 24)
     }
 
+    #[inline]
     pub fn set_u16(&mut self, addr: u16, data: u16) {
         self.set_data(addr,   (data & 0xff) as u8);   
         self.set_data(addr+1, ((data & 0xff00) >> 8) as u8);
     }
 
+    #[inline]
     pub fn set_i16(&mut self, addr: u16, data: i16) {
         self.set_data(addr,   (data & 0xff) as u8);   
         self.set_data(addr+1, (((data as u16) & 0xff00) >> 8) as u8);
     }
 
+    #[inline]
     pub fn set_u32(&mut self, addr: u16, data: u32) {
         self.set_data(addr,   (data & 0xff) as u8);   
         self.set_data(addr+1, ((data & 0xff00) >> 8) as u8);
@@ -183,66 +191,82 @@ impl SuzyRegisters {
         self.set_data(addr+3, ((data & 0xff000000) >> 24) as u8);
     }
 
+    #[inline]
     pub fn efgh(&self) -> u32 {
         self.u32(MATHH)
     }
 
+    #[inline]
     pub fn jklm(&self) -> u32 {
         self.u32(MATHM)
     }
 
+    #[inline]
     pub fn abcd(&self) -> u32 {
         self.u32(MATHD)
     }
 
+    #[inline]
     pub fn np(&self) -> u16 {
         self.u16(MATHP)
     }
 
+    #[inline]
     pub fn ab(&self) -> u16 {
         self.u16(MATHB)
     }
 
+    #[inline]
     pub fn cd(&self) -> u16 {
         self.u16(MATHD)
     }
 
+    #[inline]
     pub fn set_ab(&mut self, v: u16) {
         self.set_u16(MATHB, v)
     }
 
+    #[inline]
     pub fn set_cd(&mut self, v: u16) {
         self.set_u16(MATHD, v)
     }
 
+    #[inline]
     pub fn set_abcd(&mut self, v: u32) {
         self.set_u32(MATHD, v);
     }
 
+    #[inline]
     pub fn set_efgh(&mut self, v: u32) {
         self.set_u32(MATHH, v);
     }
 
+    #[inline]
     pub fn set_jklm(&mut self, v: u32) {
         self.set_u32(MATHM, v);
     }
 
+    #[inline]
     pub fn set_np(&mut self, v: u16) {
         self.set_u16(MATHP, v);
     }
 
+    #[inline]
     pub fn sprsys(&self) -> u8 {
         self.sprsys_r.bits()
     }
 
+    #[inline]
     pub fn set_joystick(&mut self, joy: Joystick) {
         self.set_data(JOYSTICK, joy.bits());
     }
 
+    #[inline]
     pub fn set_switches(&mut self, sw: Switches) {
         self.set_data(SWITCHES, sw.bits());
     }
 
+    #[inline]
     pub fn joystick(&self) -> Joystick {
         match Joystick::from_bits(self.data[(JOYSTICK - SUZ_ADDR) as usize]) {
             None => Joystick::empty(),
@@ -250,6 +274,7 @@ impl SuzyRegisters {
         }
     }
 
+    #[inline]
     pub fn switches(&self) -> Switches {
         match Switches::from_bits(self.data[(SWITCHES - SUZ_ADDR) as usize]) {
             None => Switches::empty(),
@@ -276,185 +301,236 @@ impl SuzyRegisters {
         }
     }
 
+    #[inline]
     pub fn sprsys_r_enable_flag(&mut self, flag: SprSysR) {
         self.sprsys_r.set(flag, true);
     }
 
+    #[inline]
     pub fn sprsys_r_disable_flag(&mut self, flag: SprSysR) {
         self.sprsys_r.set(flag, false);
     }
 
+    #[inline]
     pub fn sprsys_r_is_flag_set(&self, flag: SprSysR) -> bool {
         self.sprsys_r.contains(flag)
     }
 
+    #[inline]
     pub fn sprsys_w_enable_flag(&mut self, flag: SprSysW) {
         self.sprsys_w.set(flag, true);
     }
 
+    #[inline]
     pub fn sprsys_w_disable_flag(&mut self, flag: SprSysW) {
         self.sprsys_w.set(flag, false);
     }
 
+    #[inline]
     pub fn sprsys_w_is_flag_set(&self, flag: SprSysW) -> bool {
         self.sprsys_w.contains(flag)
     }
 
+    #[inline]
     pub fn sprctl0(&self) -> u8 {
         self.data(SPRCTL0)
     }
 
+    #[inline]
     pub fn bpp(&self) -> u8 {
         (self.data(SPRCTL0) & SPRCTL0_BPP) >> 6
     }
 
+    #[inline]
     pub fn sprctl1(&self) -> u8 {
         self.data(SPRCTL1)
     }
 
+    #[inline]
     pub fn start_quadrant(&self) -> u8 {
         static ORDER: [u8;4] = [0, 3, 1, 2];
         ORDER[(self.sprctl1() & SPRCTL1_DRAW_QUAD) as usize]
     }
 
+    #[inline]
     pub fn sprcoll(&self) -> u8 {
         self.data(SPRCOLL)
     }
 
+    #[inline]
     pub fn sbc_next(&self) -> u16 {
         self.u16(SCBNEXTL)
     }
 
+    #[inline]
     pub fn sprdline(&self) -> u16 {
         self.u16(SPRDLINEL)
     }    
 
+    #[inline]
     pub fn inc_sprdline(&mut self) {
         let (v, _) = self.u16(SPRDLINEL).overflowing_add(1);
         self.set_u16(SPRDLINEL, v);
     }
 
+    #[inline]
     pub fn set_scb_addr(&mut self, v: u16) {
         self.set_u16(SCBADRL, v);
     }
 
+    #[inline]
     pub fn set_proc_addr(&mut self, v: u16) {
         self.set_u16(PROCADRL, v);
     }
 
+    #[inline]
     pub fn set_tiltacum(&mut self, v: u16) {
         self.set_u16(TILTACUML, v);
     }
 
+    #[inline]
     pub fn scb_addr(&self) -> u16 {
         self.u16(SCBADRL)
     }
 
+    #[inline]
     pub fn vid_addr(&self) -> u16 {
         self.u16(VIDADRL)
     }
 
+    #[inline]
     pub fn ir_ticks_delay(&self) -> u16 {
         self.ir_ticks_delay
     }
     
+    #[inline]
     pub fn set_ir_ticks_delay(&mut self, ticks_delay: u16) {
         self.ir_ticks_delay = ticks_delay;
     }
     
+    #[inline]
     pub fn dec_ir_ticks_delay(&mut self) {
         self.ir_ticks_delay -= 1;
     }
 
+    #[inline]
     pub fn task_ticks_delay(&self) -> u16 {
         self.task_ticks_delay
     }
     
+    #[inline]
     pub fn set_task_ticks_delay(&mut self, ticks_delay: u16) {
         self.task_ticks_delay = ticks_delay;
     }
-    
+
+    #[inline]
+    pub fn add_task_ticks_delay(&mut self, ticks_delay: u16) {
+        self.task_ticks_delay += ticks_delay;
+    }
+
+    #[inline]
     pub fn dec_task_ticks_delay(&mut self) {
         self.task_ticks_delay -= 1;
     }
 
+    #[inline]
     pub fn data_r(&self) -> u16 {
         self.data_r
     }
     
+    #[inline]
     pub fn set_data_r(&mut self, data_r: u16) {
         self.data_r = data_r;
     }
     
+    #[inline]
     pub fn addr_r(&self) -> u16 {
         self.addr_r
     }
-    
+
+    #[inline]
     pub fn set_addr_r(&mut self, addr_r: u16) {
         self.addr_r = addr_r;
     }
-    
+
+    #[inline]
     pub fn task(&self) -> SuzyTask {
         self.task
     } 
+
+    #[inline]
     pub fn set_task(&mut self, t: SuzyTask) {
         self.task = t;
     }
 
+    #[inline]
     pub fn ir(&self) -> SuzyInstruction {
         self.ir
     }
     
+    #[inline]
     pub fn set_ir(&mut self, ir: SuzyInstruction) {
         self.ir = ir;
     }
 
+    #[inline]
     pub fn reset_ir(&mut self) {
         self.ir = SuzyInstruction::None;
     }
 
+    #[inline]
     pub fn reset_task(&mut self) {
         self.task_step = TaskStep::None;
         self.task = SuzyTask::None;
     }
     
+    #[inline]
     pub fn sign_ab(&self) -> i8 {
         self.sign_ab
     }
     
+    #[inline]
     pub fn set_sign_ab(&mut self, sign_ab: i8) {
         self.sign_ab = sign_ab;
     }
     
+    #[inline]
     pub fn sign_cd(&self) -> i8 {
         self.sign_cd
     }
     
+    #[inline]
     pub fn set_sign_cd(&mut self, sign_cd: i8) {
         self.sign_cd = sign_cd;
     }
     
+    #[inline]
     pub fn task_step(&self) -> TaskStep {
         self.task_step
     }
     
+    #[inline]
     pub fn set_task_step(&mut self, step: TaskStep) {
         self.task_step = step;
     }
 
+    #[inline]
     pub fn inc_task_step(&mut self) {
         self.task_step = self.task_step + 1;
     }
 
+    #[inline]
     pub fn tmp_cd(&self) -> u16 {
         self.tmp_cd
     }
     
+    #[inline]
     pub fn backup_cd(&mut self) {
         self.tmp_cd = self.cd();
         self.tmp_sign_cd = self.sign_cd();
     }
     
+    #[inline]
     pub fn tmp_sign_cd(&self) -> i8 {
         self.tmp_sign_cd
     }

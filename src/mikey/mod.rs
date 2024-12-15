@@ -63,11 +63,12 @@ pub struct Mikey {
     uart: Uart,
     ticks: u64,    
     registers: MikeyRegisters,
-    bus_owner: MikeyBusOwner,
+    mikey_bus_owner: MikeyBusOwner,
     video: Video,
     video_buffer_curr_addr: u16,
     disp_addr: u16,
-    is_flipped: bool
+    is_flipped: bool,
+    bus_grant_bkup: Option<bool>,
 }
 
 impl Mikey {
@@ -84,7 +85,8 @@ impl Mikey {
             video_buffer_curr_addr: 0,
             disp_addr: 0,
             is_flipped: false,
-            bus_owner: MikeyBusOwner::Cpu,
+            mikey_bus_owner: MikeyBusOwner::Cpu,
+            bus_grant_bkup: None,
         }
     }
 
@@ -97,7 +99,7 @@ impl Mikey {
         self.registers = MikeyRegisters::new();
         self.video = Video::new();
         self.video_buffer_curr_addr = 0;
-        self.bus_owner = MikeyBusOwner::Cpu;
+        self.mikey_bus_owner = MikeyBusOwner::Cpu;
         self.uart.reset();
     }
 
@@ -160,7 +162,7 @@ impl Mikey {
             return;
         }
         
-        if self.bus_owner  == MikeyBusOwner::Cpu {           
+        if self.mikey_bus_owner  == MikeyBusOwner::Cpu {           
             match bus.status() {
                 BusStatus::PeekDone => {
                     self.cpu_pins.sd(bus.data());
@@ -189,14 +191,16 @@ impl Mikey {
                     if !bus.grant() {
                         if !bus.request() {
                             bus.set_request(true);
-                            trace!("Bus grant backup false");
+                            trace!("Bus requested by Video");
+                            self.bus_grant_bkup = Some(false);
                         }
+                        
                     } else {
                         if screen_pixel_base == 0 {
                             self.disp_addr = self.registers.disp_addr();
                             self.is_flipped = self.registers.is_flipped();
                         }
-                        self.bus_owner = MikeyBusOwner::RefreshAndVideo;
+                        self.mikey_bus_owner = MikeyBusOwner::RefreshAndVideo;
                         self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
                         self.video_buffer_curr_addr = match self.is_flipped {
                             false => self.disp_addr + screen_pixel_base,
@@ -208,7 +212,7 @@ impl Mikey {
             }    
         } 
 
-        match self.bus_owner {            
+        match self.mikey_bus_owner {            
             MikeyBusOwner::Cpu => {
                 if self.cpu.flags().contains(M6502Flags::I) || self.registers.data(INTSET) == 0 {
                     self.cpu_pins.pin_off(M6502_IRQ);
@@ -248,8 +252,12 @@ impl Mikey {
 
                 self.video.push_pix_buffer(&b);
 
-                self.bus_owner = MikeyBusOwner::Cpu;
+                self.mikey_bus_owner = MikeyBusOwner::Cpu;
                 bus.set_status(BusStatus::None);
+                if let Some(grant) = self.bus_grant_bkup.take() {
+                    trace!("Refresh/Video set bus grant: {}", grant);
+                    bus.set_grant(grant);
+                }
                 trace!("[{}] Refresh/Video done.", self.ticks);
             },
         }
@@ -610,7 +618,7 @@ impl Mikey {
     }
     
     pub fn bus_owner(&self) -> MikeyBusOwner {
-        self.bus_owner
+        self.mikey_bus_owner
     }
 }
 

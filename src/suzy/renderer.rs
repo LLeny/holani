@@ -112,6 +112,7 @@ impl Renderer {
         } else {
             self.sprite_data.reset(regs);
             self.sprite_data.set_addr(scbaddr);
+            regs.set_task_ticks_delay(SUZY_SPRITE_SCB_ADDITIONAL_COST);
             regs.inc_task_step();
         }
     }
@@ -326,6 +327,7 @@ impl Renderer {
         regs.set_u16(VSIZACUML, regs.u16(VSIZACUML).overflowing_add(regs.u16(SPRVSIZL)).0);
 
         self.orig_pixel_height = regs.data(VSIZACUMH);
+        trace!("- render_lines_start. height:{}", self.orig_pixel_height);    
         self.pixel_height = 0;
 
         regs.set_data(VSIZACUMH, 0);
@@ -395,12 +397,12 @@ impl Renderer {
         if self.hsign != self.hquadoff {
             self.hoff += self.hsign;
         }
-        
+                
         regs.inc_task_step();
     }
 
     fn render_pixel_height_end(&mut self, ram: &mut Ram, regs: &mut SuzyRegisters) {
-        trace!("< render_pixel_height_end.");
+        trace!("< render_pixel_height_end. pixel_height:{}", self.pixel_height);
         self.voff += self.vsign;
     
         let sprctl1 = regs.sprctl1();
@@ -418,9 +420,10 @@ impl Renderer {
         if self.pixel_height == self.orig_pixel_height {
             regs.inc_task_step();
         }
-        else {
+        else {            
             self.sprite_data.reset(regs);
             peek_and_store_scb_data!(self, regs, ram);
+            regs.add_task_ticks_delay(SUZY_SPRITE_VERT_ADDITIONAL_COST);
             regs.set_task_step(TaskStep::RenderPixelHeightStart); 
         }
     }
@@ -435,35 +438,33 @@ impl Renderer {
 
         let mut mem_access_count: u16 = 0;
 
-        for _ in 0..4 {
-            match self.sprite_data.line_get_pixel(regs, &self.pens) {
-                Result::Err(_e) => { 
-                    peek_and_store_scb_data!(self, regs, ram);
-                    return;
-                }
-                Result::Ok(v) => self.pixel = v,
-            }
-
-            if self.pixel == LINE_END {
-                regs.inc_task_step();
+        match self.sprite_data.line_get_pixel(regs, &self.pens) {
+            Result::Err(_e) => { 
+                peek_and_store_scb_data!(self, regs, ram);
                 return;
             }
+            Result::Ok(v) => self.pixel = v,
+        }
 
-            regs.set_u16(TMPADRL, regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0);
-            self.pixel_width = regs.data(TMPADRH);
-            regs.set_data(TMPADRH, 0);
+        if self.pixel == LINE_END {
+            regs.inc_task_step();
+            return;
+        }
 
-            for _ in 0..self.pixel_width {
-                if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
-                    self.ever_on_screen = true;                
-                    mem_access_count += self.process_pixel(regs, ram); 
-                    trace!("- RenderPixel. {}", mem_access_count);    
-                }
-                self.hoff += self.hsign;
+        regs.set_u16(TMPADRL, regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0);
+        self.pixel_width = regs.data(TMPADRH);
+        regs.set_data(TMPADRH, 0);
+
+        for _ in 0..self.pixel_width {
+            if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
+                self.ever_on_screen = true;                
+                mem_access_count += self.process_pixel(regs, ram); 
+                trace!("- RenderPixel. width:{}", self.pixel_width);    
             }
-        }   
+            self.hoff += self.hsign;
+        }
 
-        regs.set_task_ticks_delay(mem_access_count * RAM_PAGE_READ_TICKS as u16);
+        regs.set_task_ticks_delay(mem_access_count);
     }
 
     fn write_pixel(&mut self, regs: &SuzyRegisters, ram: &mut Ram, pixel: u32) -> u16 {

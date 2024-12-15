@@ -183,13 +183,15 @@ impl Suzy {
         if  req && req != self.request_monitor {
             self.pending_bus_request_ticks = SUZY_BUS_GRANT_TICKS as i8; // "The time between Mikey requesting the bus and Suzy releasing it is dependant on the state of the currently running process inside of Suzy. The longest process is 30 ticks. Adding the overhead of accepting the bus request and releasing the bus grant brings the total to 40 ticks."
             self.request_monitor = req;
+            trace!("Bus requested.")
         }
     
         match self.pending_bus_request_ticks {
             -1 => (),
             0 => {
-                self.pending_bus_request_ticks = -1;
+                self.pending_bus_request_ticks = -1;                
                 self.grant_bus(bus); 
+                trace!("Bus granted.")
             }
             _ => self.pending_bus_request_ticks -= 1,
         }
@@ -226,6 +228,7 @@ impl Suzy {
         }        
 
         if self.has_bus(bus) && self.registers.task() == SuzyTask::None {
+            trace!("Work done. Bus granted.");
             self.grant_bus(bus); 
         }
     }
@@ -242,8 +245,8 @@ impl Suzy {
 
     fn process_ir_step(&mut self, bus: &mut Bus) {
 
-        match self.registers.ir() { //  "Any CPU write to an LSB will set the MSB to 0.""
-            SuzyInstruction::PokeAndResetNext => { 
+        match self.registers.ir() { 
+            SuzyInstruction::PokeAndResetNext => { //  "Any CPU write to an LSB will set the MSB to 0.""
                 self.registers.set_u16(self.registers.addr_r(), self.registers.data_r() & 0xff);
                 self.registers.reset_ir();
                 trace!("< Poke");
