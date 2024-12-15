@@ -1,7 +1,6 @@
 use log::trace;
 use serde::{Deserialize, Serialize};
-
-use crate::{Bus, BusStatus, INTV_ADDR, NMIV_ADDR, RESV_ADDR};
+use crate::{bus::{Bus, BusStatus}, consts::*};
 
 const VECTOR_NORMAL_READ_TICKS: i8 = 5;
 const VECTOR_NORMAL_WRITE_TICKS: i8 = 5;

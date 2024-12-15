@@ -1,6 +1,6 @@
+use alloc::vec::Vec;
 use log::trace;
 use bitflags::bitflags;
-use crate::{DISPADR, MIK_ADDR};
 use super::*;
 
 macro_rules! atten_left{

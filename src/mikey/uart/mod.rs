@@ -3,16 +3,14 @@ pub mod redeye_status;
 
 #[cfg(not(feature = "comlynx_shared_memory"))]
 pub mod comlynx_cable_mutex;
+use alloc::vec::Vec;
 #[cfg(not(feature = "comlynx_shared_memory"))]
 use comlynx_cable_mutex::ComlynxCable;
-
 #[cfg(feature = "comlynx_shared_memory")]
 pub mod comlynx_cable_shared_memory;
 #[cfg(feature = "comlynx_shared_memory")]
 use comlynx_cable_shared_memory::ComlynxCable;
-
 use redeye_status::RedeyeStatus;
-
 use super::*;
 
 macro_rules! bool_parity {

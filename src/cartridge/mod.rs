@@ -3,13 +3,17 @@ mod cartridge_generic;
 mod eeprom;
 mod no_intro;
 
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
+use bus::{Bus, BusStatus};
 use cartridge_generic::*;
+use consts::*;
 use eeprom::Eeprom;
 use lnx_header::{LNXHeader, LNXRotation};
 use log::error;
 use mikey::registers::MikeyRegisters;
 use no_intro::check_no_intro;
+use serde::{Deserialize, Serialize};
+use suzy::registers::Switches;
 use crate::*;
 
 const LNX_HEADER_LENGTH: usize = 64;

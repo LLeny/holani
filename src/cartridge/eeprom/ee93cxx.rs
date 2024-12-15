@@ -2,8 +2,7 @@ use alloc::vec::Vec;
 use log::trace;
 use serde::{Deserialize, Serialize};
 use bitflags::bitflags;
-
-use crate::{CART_PIN_A1, CART_PIN_A7, CART_PIN_AUDIN};
+use crate::consts::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy)]
 pub enum Ee93cxxType {

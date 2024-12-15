@@ -1,6 +1,6 @@
 use log::trace;
 
-use crate::suzy::{SprSysR, SprSysW, MATHA, MATHC, MATHE, MATHL, MATHM, SUZY_MULT_NON_SIGN_TICKS, SUZY_MULT_SIGN_TICKS};
+use crate::{consts::*, suzy::{SprSysR, SprSysW}};
 use super::SuzyRegisters;
 
 pub fn convert_sign(mut v: u16) -> (u16, i8)  {

@@ -4,7 +4,6 @@ pub mod base_timer;
 use audio_channel_timer::AudioChannelTimer;
 use base_timer::BaseTimer;
 use log::trace;
-use crate::CRYSTAL_TICK_LENGTH;
 use crate::mikey::*;
 
 const TIMER_TICKS_COUNT: u16 = (0.000001 / CRYSTAL_TICK_LENGTH) as u16; // 1us/62.5ns

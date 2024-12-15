@@ -3,10 +3,14 @@ pub mod math;
 pub mod sprite_data;
 pub mod registers;
 
+use bus::{Bus, BusStatus};
+use consts::*;
 use log::trace;
 use math::*;
+use ram::Ram;
 use renderer::*;
 use registers::*;
+use serde::{Deserialize, Serialize};
 use super::*;
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]

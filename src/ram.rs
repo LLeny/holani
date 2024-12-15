@@ -1,12 +1,9 @@
 use log::trace;
-use crate::shared_memory::SharedMemory;
-use crate::*;
+use crate::{consts::*, shared_memory::SharedMemory};
 use serde::{Serialize, Deserialize};
 use super::bus::*;
-use super::MMC_ADDR;
 
 pub const RAM_MAX: u16 = 0xffff;
-
 
 #[derive(Serialize, Deserialize)]
 pub struct Ram {
@@ -32,14 +29,17 @@ impl Ram {
         r
     }
 
+    #[inline]
     pub fn get(&self, addr: u16) -> u8 {
         self.data[addr as usize]
     }
 
+    #[inline]
     pub fn set(&mut self, addr: u16, data: u8) {
         self.data[addr as usize] = data;
     }
 
+    #[inline]
     pub fn fill(&mut self, v: u8) {
         self.data.fill(v);
     }
@@ -89,18 +89,22 @@ impl Ram {
         self.ticks += 1;
     }
 
+    #[inline]
     pub fn mmapctl(&self) -> u8 {
         self.data[MMC_ADDR as usize]
     }
 
+    #[inline]
     pub fn set_mmapctl(&mut self, data: u8) {
         self.data[MMC_ADDR as usize] = data;
     }
 
+    #[inline]
     pub fn write(&self) -> bool {
         self.write
     }
 
+    #[inline]
     pub fn data(&self) -> &SharedMemory {
         &self.data
     }

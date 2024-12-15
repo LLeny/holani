@@ -1,4 +1,7 @@
-use super::*;
+use alloc::vec::Vec;
+use log::trace;
+use serde::{Deserialize, Serialize};
+use crate::{bus::{Bus, BusStatus}, consts::*};
 
 const ROM_SIZE: usize = 512;
 const ROM_NORMAL_READ_TICKS: i8 = 5;

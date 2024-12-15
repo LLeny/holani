@@ -5,8 +5,14 @@ pub mod uart;
 pub mod video;
 
 use crate::*;
+use bus::{Bus, BusStatus};
+use cartridge::Cartridge;
+use consts::*;
 use cpu::*;
 use log::trace;
+use ram::Ram;
+use rom::Rom;
+use serde::{Deserialize, Serialize};
 use timers::*;
 use registers::*;
 #[cfg(not(feature = "comlynx_shared_memory"))]

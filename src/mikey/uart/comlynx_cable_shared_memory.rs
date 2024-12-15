@@ -64,7 +64,7 @@ impl ComlynxCableVisitor {
     }
 }
 
-impl<'de> Visitor<'de> for ComlynxCableVisitor {
+impl Visitor<'_> for ComlynxCableVisitor {
     type Value = ComlynxCable;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

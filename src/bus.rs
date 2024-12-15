@@ -37,43 +37,53 @@ impl Bus {
             grant: true,
         }
     }
-        
+    
+    #[inline]
     pub fn data(&self) -> u8 {
         self.data
     }
     
+    #[inline]
     pub fn addr(&self) -> u16 {
         self.addr
     }
     
+    #[inline]
     pub fn status(&self) -> BusStatus {
         self.status
     }
     
+    #[inline]
     pub fn request(&self) -> bool {
         self.request
     }
     
+    #[inline]
     pub fn grant(&self) -> bool {
         self.grant
     }
     
+    #[inline]
     pub fn set_data(&mut self, data: u8) {
         self.data = data;
     }
     
+    #[inline]
     pub fn set_addr(&mut self, addr: u16) {
         self.addr = addr;
     }
     
+    #[inline]
     pub fn set_status(&mut self, status: BusStatus) {
         self.status = status;
     }
     
+    #[inline]
     pub fn set_request(&mut self, request: bool) {
         self.request = request;
     }
     
+    #[inline]
     pub fn set_grant(&mut self, grant: bool) {
         self.grant = grant;
     }
