@@ -12,7 +12,7 @@ pub struct BaseTimer {
     control_b: u8,
     clock_ticks: Option<u32>,
     next_trigger_tick: u64,
-    linked_timer: Option<usize>,
+    linked_timer: Option<NonZeroU8>,
     triggered: bool,
     is_linked: bool,
     count_enabled: bool,
@@ -20,7 +20,7 @@ pub struct BaseTimer {
 }
 
 impl BaseTimer{
-    pub fn new(id: u8, linked_timer: Option<usize>) -> Self {
+    pub fn new(id: u8, linked_timer: Option<NonZeroU8>) -> Self {
         Self {
             id,
             int: 1 << id,
@@ -38,7 +38,7 @@ impl BaseTimer{
         }
     }
 
-    pub fn linked_timer(&self) -> Option<usize> {
+    pub fn linked_timer(&self) -> Option<NonZeroU8> {
         self.linked_timer
     }
 

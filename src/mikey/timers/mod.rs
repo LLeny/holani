@@ -1,6 +1,7 @@
 pub mod audio_channel_timer;
 pub mod base_timer;
 
+use core::num::{NonZero, NonZeroU8};
 use audio_channel_timer::AudioChannelTimer;
 use base_timer::BaseTimer;
 use log::trace;
@@ -8,7 +9,7 @@ use crate::mikey::*;
 
 const TIMER_TICKS_COUNT: u16 = (0.000001 / CRYSTAL_TICK_LENGTH) as u16; // 1us/62.5ns
 
-const TIMER_LINKS: [Option<usize>; 12] = [Some(2), Some(3), Some(4), Some(5), None, Some(7), None, Some(8), Some(9), Some(10), Some(11), Some(1)];
+const TIMER_LINKS: [Option<NonZeroU8>; 12] = [Some(NonZero::new(2).unwrap()), Some(NonZero::new(3).unwrap()), Some(NonZero::new(4).unwrap()), Some(NonZero::new(5).unwrap()), None, Some(NonZero::new(7).unwrap()), None, Some(NonZero::new(8).unwrap()), Some(NonZero::new(9).unwrap()), Some(NonZero::new(10).unwrap()), Some(NonZero::new(11).unwrap()), Some(NonZero::new(1).unwrap())];
 const TIMER_COUNT: u8 = 12;
 
 const CTRLA_INTERRUPT_BIT: u8 = 0b10000000;
@@ -105,8 +106,8 @@ impl Timers {
     }
 
     #[inline(always)]
-    fn tick_linked_timer(&mut self, timer_id: usize) -> u8 {
-        match &mut self.timers[timer_id] {
+    fn tick_linked_timer(&mut self, timer_id: NonZeroU8) -> u8 {
+        match &mut self.timers[timer_id.get() as usize] {
             TimerType::Base(t) => tick_linked_timer!(self, t),
             TimerType::Audio(t) => tick_linked_timer!(self, t),
         }

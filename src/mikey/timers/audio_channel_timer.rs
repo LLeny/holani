@@ -16,7 +16,7 @@ pub struct AudioChannelTimer {
     feedback: u8,
     shift_register: u8,
     output: i8,
-    linked_timer: Option<usize>,
+    linked_timer: Option<NonZeroU8>,
     is_linked: bool,
     count_enabled: bool,
     reload_enabled: bool,
@@ -24,7 +24,7 @@ pub struct AudioChannelTimer {
 }
 
 impl AudioChannelTimer{
-    pub fn new(id: u8, linked_timer: Option<usize>) -> Self {
+    pub fn new(id: u8, linked_timer: Option<NonZeroU8>) -> Self {
         Self {
             id,
             backup: 0,
@@ -45,7 +45,7 @@ impl AudioChannelTimer{
         }
     }
 
-    pub fn linked_timer(&self) -> Option<usize> {
+    pub fn linked_timer(&self) -> Option<NonZeroU8> {
         self.linked_timer
     }
 
