@@ -445,11 +445,6 @@ impl SuzyRegisters {
         self.task_step = self.task_step + 1;
     }
 
-    pub fn scb_peek_sprite_data(&mut self) {
-        self.set_task(SuzyTask::SpriteDataPeek); 
-        self.set_task_ticks_delay(RAM_DMA_READ_TICKS as u16 * SUZY_DATA_BUFFER_LEN); 
-    }
-    
     pub fn tmp_cd(&self) -> u16 {
         self.tmp_cd
     }

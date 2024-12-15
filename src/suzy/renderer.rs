@@ -4,11 +4,35 @@ use suzy::*;
 use sprite_data::SpriteData;
 use crate::*;
 
-macro_rules! store_buffer_byte {
-    ($s: expr, $regs: ident, $dest: ident) => { {
-        let d = $s.sprite_data.get_bits(8).unwrap() as u8;
+macro_rules! peek_dma {
+    ($regs: ident, $ram: ident, $addr: expr) => {{
+        $regs.set_task_ticks_delay(RAM_PAGE_READ_TICKS as u16);
+        $ram.get($addr)
+    }};
+}
+
+macro_rules! peek_scb_header {
+    ($slf: ident, $regs: ident, $ram: ident) => {{
+        let data = peek_dma!($regs, $ram, $slf.sprite_data.addr());
+        $slf.inc_scb_curr_adr();
+        $slf.scb_step += 1;
+        data
+    }};
+}
+
+macro_rules! peek_and_store_scb_data {
+    ($slf: ident, $regs: ident, $ram: ident) => {
+        let data = peek_dma!($regs, $ram, $slf.sprite_data.addr());        
+        $slf.sprite_data.push_data(data);
+        $slf.inc_scb_curr_adr();
+    };
+}
+
+macro_rules! peek_and_store_scb_header {
+    ($slf: ident, $regs: ident, $ram: ident, $dest: expr) => {{
+        let d = peek_scb_header!($slf, $regs, $ram);
         $regs.set_data($dest, d);
-    } };
+    }};
 }
 
 #[derive(Serialize, Deserialize)]
@@ -88,7 +112,6 @@ impl Renderer {
         } else {
             self.sprite_data.reset(regs);
             self.sprite_data.set_addr(scbaddr);
-            regs.scb_peek_sprite_data();
             regs.inc_task_step();
         }
     }
@@ -100,79 +123,83 @@ impl Renderer {
         regs.reset_task();
     }
 
-    fn load_scb(&mut self, regs: &mut SuzyRegisters) {
+    fn load_scb(&mut self, ram: &mut Ram, regs: &mut SuzyRegisters) {
         trace!("Load SCB. step: {}", self.scb_step);
+        let mut end_scb: bool = false;
 
         match self.scb_step {
-            0 => {
-                store_buffer_byte!(self, regs, SPRCTL0);
-                store_buffer_byte!(self, regs, SPRCTL1);
-                store_buffer_byte!(self, regs, SPRCOLL);
-                store_buffer_byte!(self, regs, SCBNEXTL); 
-                store_buffer_byte!(self, regs, SCBNEXTH);
+            0 => peek_and_store_scb_header!(self, regs, ram, SPRCTL0),
+            1 => peek_and_store_scb_header!(self, regs, ram, SPRCTL1),
+            2 => peek_and_store_scb_header!(self, regs, ram, SPRCOLL),
+            3 => peek_and_store_scb_header!(self, regs, ram, SCBNEXTL), 
+            4 => {
+                peek_and_store_scb_header!(self, regs, ram, SCBNEXTH);
                 if regs.sprctl1() & SPRCTL1_SKIP_SPRITE != 0 {
                     trace!("Sprite skipped.");
                     self.scb_step = 0;
                     self.sprite_data.reset(regs);
-                    regs.set_task_step(TaskStep::InitializePainting); // next scb if any
-                    return;
+                    regs.set_task_step(TaskStep::InitializePainting); // next scb if any                    
                 }
-                store_buffer_byte!(self, regs, SPRDLINEL);
-                store_buffer_byte!(self, regs, SPRDLINEH);
-                store_buffer_byte!(self, regs, HPOSSTRTL);             
-
-                regs.scb_peek_sprite_data();
-                self.scb_pen_idx = 0;
-                self.scb_step = 1;
-            }            
-            1 => {
-                store_buffer_byte!(self, regs, HPOSSTRTH);
-                store_buffer_byte!(self, regs, VPOSSTRTL);
-                store_buffer_byte!(self, regs, VPOSSTRTH);
-
+            }
+            5 => peek_and_store_scb_header!(self, regs, ram, SPRDLINEL),
+            6 => peek_and_store_scb_header!(self, regs, ram, SPRDLINEH),
+            7 => peek_and_store_scb_header!(self, regs, ram, HPOSSTRTL),             
+            8 => peek_and_store_scb_header!(self, regs, ram, HPOSSTRTH),
+            9 => peek_and_store_scb_header!(self, regs, ram, VPOSSTRTL),
+            10 => {
+                peek_and_store_scb_header!(self, regs, ram, VPOSSTRTH);
                 if regs.sprctl1() & SPRCTL1_RELOAD_HVST == 0 {
-                    self.scb_step = 3;
-                    return;
-                }
-                store_buffer_byte!(self, regs, SPRHSIZL);
-                store_buffer_byte!(self, regs, SPRHSIZH);
-                store_buffer_byte!(self, regs, SPRVSIZL);
-                store_buffer_byte!(self, regs, SPRVSIZH);
-                if regs.sprctl1() & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS {
-                    store_buffer_byte!(self, regs, STRETCHL); 
-                    regs.scb_peek_sprite_data();
-                    self.scb_step = 2;
-                } else {
-                    self.scb_step = 3;
-                }  
-            }
-            2 => {
-                store_buffer_byte!(self, regs, STRETCHH);
-                if regs.sprctl1() & SPRCTL1_RELOAD_HVST == SPRCTL1_RELOAD_HVST {
-                    store_buffer_byte!(self, regs, TILTL);
-                    store_buffer_byte!(self, regs, TILTH);
-                }
-                self.scb_step = 3;                
-            }
-            3 =>  {
-                if regs.sprctl1() & SPRCTL1_REUSE_PALETTE != SPRCTL1_REUSE_PALETTE {
-                    while self.scb_pen_idx < 16 {
-                        if self.sprite_data.shift_reg_count() < 8 {
-                            regs.scb_peek_sprite_data();
-                            return;
-                        }
-                        let d = self.sprite_data.get_bits(8).unwrap() as u8;                    
-                        self.pens[self.scb_pen_idx] = d >> 4;
-                        self.pens[self.scb_pen_idx+1] = d & 0xf;
-                        self.scb_pen_idx += 2;
+                    if regs.sprctl1() & SPRCTL1_REUSE_PALETTE == SPRCTL1_REUSE_PALETTE {
+                        end_scb = true;
+                    } else {
+                        self.scb_step = 19;
                     }
                 }
-                regs.inc_task_step();
-                self.scb_step = 0;
-                self.sprite_data.reset(regs);
-                trace!("End Load SCB."); 
             }
-            _ => ()      
+            11 => peek_and_store_scb_header!(self, regs, ram, SPRHSIZL),
+            12 => peek_and_store_scb_header!(self, regs, ram, SPRHSIZH),
+            13 => peek_and_store_scb_header!(self, regs, ram, SPRVSIZL),
+            14 => {
+                peek_and_store_scb_header!(self, regs, ram, SPRVSIZH);
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVS != SPRCTL1_RELOAD_HVS {
+                    if regs.sprctl1() & SPRCTL1_REUSE_PALETTE == SPRCTL1_REUSE_PALETTE {
+                        end_scb = true;
+                    } else {
+                        self.scb_step = 19;
+                    }
+                }
+            }
+            15 => peek_and_store_scb_header!(self, regs, ram, STRETCHL),
+            16 => {
+                peek_and_store_scb_header!(self, regs, ram, STRETCHH);
+                if regs.sprctl1() & SPRCTL1_RELOAD_HVST != SPRCTL1_RELOAD_HVST {
+                    if regs.sprctl1() & SPRCTL1_REUSE_PALETTE == SPRCTL1_REUSE_PALETTE {
+                        end_scb = true;
+                    } else {
+                        self.scb_step = 19;
+                    }
+                }
+            }
+            17 => peek_and_store_scb_header!(self, regs, ram, TILTL),
+            18 => peek_and_store_scb_header!(self, regs, ram, TILTH),
+            19..27 => {
+                let data = peek_scb_header!(self, regs, ram);
+                self.pens[self.scb_pen_idx] = data >> 4;
+                self.pens[self.scb_pen_idx+1] = data & 0xf;
+                self.scb_pen_idx += 2;
+                if self.scb_pen_idx >= 16 {
+                    end_scb = true;
+                }
+            }
+            _ => unreachable!("Should not be happening")
+        }
+
+        if end_scb {
+            regs.inc_task_step();
+            self.scb_step = 0;
+            self.scb_pen_idx = 0;
+            self.sprite_data.reset(regs);
+            trace!("End Load SCB."); 
         }
     }
 
@@ -251,13 +278,13 @@ impl Renderer {
         }
     }
 
-    pub fn sprite_end(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) -> u16 {
+    pub fn sprite_end(&mut self, regs: &mut SuzyRegisters, ram: &mut Ram) -> u16 {
         let mut mem_count = 0;
         if regs.sprcoll() & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) {
             match regs.sprctl0() & SPRCTL0_SPR_TYPE {
                 2 | 3 | 4 | 6 | 7 => {
                     let coladr = regs.scb_addr().overflowing_add(regs.u16(COLLOFFL)).0;
-                    dma_ram.set(coladr, self.collision);
+                    ram.set(coladr, self.collision);
                     mem_count += 1;
                     trace!("set collision 0x{:04X}=0x{:02X}", coladr, self.collision);
                 }
@@ -267,13 +294,13 @@ impl Renderer {
 
         if regs.data(SPRGO) & SPRGO_EVERON != 0 {
             let coladr = regs.scb_addr().overflowing_add(regs.u16(COLLOFFL)).0;
-            let mut coldat = dma_ram.get(coladr);
+            let mut coldat = ram.get(coladr);
             if !self.ever_on_screen {
                 coldat |= 0x80;
             } else {
                 coldat &= 0x7f;
             }
-            dma_ram.set(coladr, coldat);
+            ram.set(coladr, coldat);
         }
 
         if regs.sprsys_w_is_flag_set(SprSysW::sprite_to_stop) {
@@ -284,11 +311,11 @@ impl Renderer {
         mem_count
     }
 
-    fn render_lines_start(&mut self, regs: &mut SuzyRegisters) {
+    fn render_lines_start(&mut self, ram: &mut Ram, regs: &mut SuzyRegisters) {
         trace!("> render_lines_start.");
         match self.sprite_data.initialize(regs, 0) {
             Result::Err(_e) => { 
-                regs.scb_peek_sprite_data();
+                peek_and_store_scb_data!(self, regs, ram);
                 return;
             }
             Result::Ok(v) => {
@@ -336,7 +363,7 @@ impl Renderer {
         regs.set_task_step(TaskStep::RenderLinesStart);
     }
 
-    fn render_pixel_height_start(&mut self, regs: &mut SuzyRegisters) {
+    fn render_pixel_height_start(&mut self, ram: &mut Ram, regs: &mut SuzyRegisters) {
         trace!("> render_pixel_height_start.");
 
         if (self.vsign > 0 && self.voff >= LYNX_SCREEN_HEIGHT as i16) || (self.vsign < 0 && self.voff < 0) || self.orig_pixel_height == 0 { 
@@ -345,7 +372,7 @@ impl Renderer {
         } 
 
         if let Result::Err(_e) = self.sprite_data.initialize(regs, self.voff) { 
-            regs.scb_peek_sprite_data();
+            peek_and_store_scb_data!(self, regs, ram);
             return;
         }
 
@@ -372,7 +399,7 @@ impl Renderer {
         regs.inc_task_step();
     }
 
-    fn render_pixel_height_end(&mut self, regs: &mut SuzyRegisters) {
+    fn render_pixel_height_end(&mut self, ram: &mut Ram, regs: &mut SuzyRegisters) {
         trace!("< render_pixel_height_end.");
         self.voff += self.vsign;
     
@@ -393,12 +420,12 @@ impl Renderer {
         }
         else {
             self.sprite_data.reset(regs);
-            regs.scb_peek_sprite_data();
+            peek_and_store_scb_data!(self, regs, ram);
             regs.set_task_step(TaskStep::RenderPixelHeightStart); 
         }
     }
 
-    fn render_pixels_in_line(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) {
+    fn render_pixels_in_line(&mut self, regs: &mut SuzyRegisters, ram: &mut Ram) {
         trace!("- render_pixels_in_line.");
 
         if self.voff < 0 || self.voff >= LYNX_SCREEN_HEIGHT as i16 {
@@ -411,8 +438,7 @@ impl Renderer {
         for _ in 0..4 {
             match self.sprite_data.line_get_pixel(regs, &self.pens) {
                 Result::Err(_e) => { 
-                    regs.scb_peek_sprite_data();
-                    regs.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
+                    peek_and_store_scb_data!(self, regs, ram);
                     return;
                 }
                 Result::Ok(v) => self.pixel = v,
@@ -430,20 +456,20 @@ impl Renderer {
             for _ in 0..self.pixel_width {
                 if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
                     self.ever_on_screen = true;                
-                    mem_access_count += self.process_pixel(regs, dma_ram); 
+                    mem_access_count += self.process_pixel(regs, ram); 
                     trace!("- RenderPixel. {}", mem_access_count);    
                 }
                 self.hoff += self.hsign;
             }
         }   
 
-        regs.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
+        regs.set_task_ticks_delay(mem_access_count * RAM_PAGE_READ_TICKS as u16);
     }
 
-    fn write_pixel(&mut self, regs: &SuzyRegisters, dma_ram: &mut Ram, pixel: u32) -> u16 {
+    fn write_pixel(&mut self, regs: &SuzyRegisters, ram: &mut Ram, pixel: u32) -> u16 {
         let scr_addr : u16 = regs.u16(VIDADRL) + (self.hoff as u16 / 2);
 
-        let mut dest: u8 = dma_ram.get(scr_addr);
+        let mut dest: u8 = ram.get(scr_addr);
 
         if self.hoff & 0x01 == 0 {
             dest &= 0x0f;
@@ -452,16 +478,16 @@ impl Renderer {
             dest &= 0xf0;
             dest |= pixel as u8;
         }
-        dma_ram.set(scr_addr, dest);
+        ram.set(scr_addr, dest);
         trace!("write_pixel({}, {}) 0x{:04x} = 0x{:02x}", self.hoff, pixel, scr_addr, dest);
 
         2
     }
 
-    fn read_pixel(&mut self, regs: &SuzyRegisters, dma_ram: &mut Ram) -> (u8, u16) {
+    fn read_pixel(&mut self, regs: &SuzyRegisters, ram: &mut Ram) -> (u8, u16) {
         let scr_addr : u16 = regs.u16(VIDADRL) + (self.hoff as u16 / 2);
 
-        let mut data: u8 = dma_ram.get(scr_addr);
+        let mut data: u8 = ram.get(scr_addr);
 
         if self.hoff & 0x01 == 0 {
             data >>= 4;
@@ -472,10 +498,10 @@ impl Renderer {
         (data, 1)
     }
 
-    fn write_collision(&mut self, regs: &SuzyRegisters, dma_ram: &mut Ram, pixel: u8) -> u16 {
+    fn write_collision(&mut self, regs: &SuzyRegisters, ram: &mut Ram, pixel: u8) -> u16 {
         let col_addr = regs.u16(COLLADRL) + (self.hoff as u16 / 2);
 
-        let mut dest: u8 = dma_ram.get(col_addr);
+        let mut dest: u8 = ram.get(col_addr);
 
         if self.hoff & 0x01 == 0 {
             dest &= 0x0f;
@@ -485,15 +511,15 @@ impl Renderer {
             dest &= 0xf0;
             dest |= pixel;
         }
-        dma_ram.set(col_addr, dest);
+        ram.set(col_addr, dest);
         trace!("Write collision pixel 0x{:04x} = 0x{:02x}", col_addr, dest);
         2
     }
 
-    fn read_collision(&mut self, regs: &SuzyRegisters, dma_ram: &mut Ram) -> (u8, u16) {
+    fn read_collision(&mut self, regs: &SuzyRegisters, ram: &mut Ram) -> (u8, u16) {
         let col_addr : u16 = regs.u16(COLLADRL) + (self.hoff as u16 / 2);
 
-        let mut data: u8 = dma_ram.get(col_addr);
+        let mut data: u8 = ram.get(col_addr);
 
         if self.hoff & 0x01 == 0 {
             data >>= 4;
@@ -504,7 +530,7 @@ impl Renderer {
         (data, 1)
     }
 
-    pub fn process_pixel(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) -> u16 {
+    pub fn process_pixel(&mut self, regs: &mut SuzyRegisters, ram: &mut Ram) -> u16 {
         let mut mem_accesses : u16 = 0;
 
         trace!("process_pixel() 0x{:04x} 0x{:02x} type:{}", self.hoff, self.pixel, regs.sprctl0() & SPRCTL0_SPR_TYPE);
@@ -514,93 +540,93 @@ impl Renderer {
         match regs.sprctl0() & SPRCTL0_SPR_TYPE {
             // 0 - BACKGROUND SHADOW
             0 => { 
-                mem_accesses += self.write_pixel(regs, dma_ram, self.pixel);
+                mem_accesses += self.write_pixel(regs, ram, self.pixel);
                 if sprcoll & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) && self.pixel != 0x0e {
-                    mem_accesses += self.write_collision(regs, dma_ram, sprcoll & SPRCOLL_NUMBER);
+                    mem_accesses += self.write_collision(regs, ram, sprcoll & SPRCOLL_NUMBER);
                 }
             }
 
             // 1 - BACKGROUND NOCOLLIDE
-            1 => mem_accesses += self.write_pixel(regs, dma_ram, self.pixel),
+            1 => mem_accesses += self.write_pixel(regs, ram, self.pixel),
 
             // 2 - BOUNDARY_SHADOW
             2 => {
                 if self. pixel != 0x00 && self.pixel != 0x0e && self.pixel != 0x0f {
-                    mem_accesses += self.write_pixel(regs, dma_ram, self.pixel);
+                    mem_accesses += self.write_pixel(regs, ram, self.pixel);
                 }
 
                 if self.pixel != 0x00 && self.pixel != 0x0e && sprcoll & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) {
-                    let (c, m) = self.read_collision(regs, dma_ram);
+                    let (c, m) = self.read_collision(regs, ram);
                     mem_accesses += m;
                     if c > self.collision {
                         self.collision = c;
                     }
-                    mem_accesses += self.write_collision(regs, dma_ram, sprcoll & SPRCOLL_NUMBER);
+                    mem_accesses += self.write_collision(regs, ram, sprcoll & SPRCOLL_NUMBER);
                 }
             }
 
             // 3 - BOUNDARY
             3 => {
                 if self.pixel != 0x00 && self.pixel != 0x0f {
-                    mem_accesses += self.write_pixel(regs, dma_ram, self.pixel);
+                    mem_accesses += self.write_pixel(regs, ram, self.pixel);
                 }
                 if self.pixel != 0x00 && sprcoll & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) {
-                    let (c, m) = self.read_collision(regs, dma_ram);
+                    let (c, m) = self.read_collision(regs, ram);
                     mem_accesses += m;
                     if c > self.collision {
                         self.collision = c;
                     }
-                    mem_accesses += self.write_collision(regs, dma_ram, sprcoll & SPRCOLL_NUMBER);
+                    mem_accesses += self.write_collision(regs, ram, sprcoll & SPRCOLL_NUMBER);
                 }
             }
 
             // 4 - NORMAL
             4 => {
                 if self.pixel != 0x00 {
-                    mem_accesses += self.write_pixel(regs, dma_ram, self.pixel);
+                    mem_accesses += self.write_pixel(regs, ram, self.pixel);
                     if sprcoll & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) {
-                        let (c, m) = self.read_collision(regs, dma_ram);
+                        let (c, m) = self.read_collision(regs, ram);
                         mem_accesses += m;
                         if c > self.collision {
                             self.collision = c;
                         }
-                        mem_accesses += self.write_collision(regs, dma_ram, sprcoll & SPRCOLL_NUMBER);
+                        mem_accesses += self.write_collision(regs, ram, sprcoll & SPRCOLL_NUMBER);
                     }
                 }
             }
 
             // 5 - NOCOLLIDE
-            5 => if self.pixel != 0x00 { mem_accesses += self.write_pixel(regs, dma_ram, self.pixel); },
+            5 => if self.pixel != 0x00 { mem_accesses += self.write_pixel(regs, ram, self.pixel); },
             
             // 6 - XOR SHADOW
             6 => {
                 if self.pixel != 0x00 {
-                    let (p, m) = self.read_pixel(regs, dma_ram);
+                    let (p, m) = self.read_pixel(regs, ram);
                     mem_accesses += m;
-                    mem_accesses += self.write_pixel(regs, dma_ram, p as u32 ^ self.pixel);
+                    mem_accesses += self.write_pixel(regs, ram, p as u32 ^ self.pixel);
                 }
                 if self.pixel != 0x00 && self.pixel != 0x0e && sprcoll & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) {
-                    let (c, m) = self.read_collision(regs, dma_ram);
+                    let (c, m) = self.read_collision(regs, ram);
                     mem_accesses += m;
                     if c > self.collision {
                         self.collision = c;
                     }
-                    mem_accesses += self.write_collision(regs, dma_ram, sprcoll & SPRCOLL_NUMBER);
+                    mem_accesses += self.write_collision(regs, ram, sprcoll & SPRCOLL_NUMBER);
                 }
             }
 
             // 7 - SHADOW
             7 => {
                 if self.pixel != 0x00 {
-                    mem_accesses += self.write_pixel(regs, dma_ram, self.pixel);
+                    mem_accesses += self.write_pixel(regs, ram, self.pixel);
                 }
                 if self.pixel != 0x00 && self.pixel != 0x0e && sprcoll & SPRCOLL_DONT_COLLIDE == 0 && !regs.sprsys_w_is_flag_set(SprSysW::no_collide) {
-                    let (c, m) = self.read_collision(regs, dma_ram);
+                    let (c, m) = self.read_collision(regs, ram);
                     mem_accesses += m;
                     if c > self.collision {
                         self.collision = c;
                     }
-                    mem_accesses += self.write_collision(regs, dma_ram, sprcoll & SPRCOLL_NUMBER);
+                    mem_accesses += self.write_collision(regs, ram, sprcoll & SPRCOLL_NUMBER);
                 }
             }
 
@@ -610,17 +636,17 @@ impl Renderer {
     }
 
 
-    pub fn render_sprites(&mut self, regs: &mut SuzyRegisters, dma_ram: &mut Ram) -> bool {
+    pub fn render_sprites(&mut self, regs: &mut SuzyRegisters, ram: &mut Ram) -> bool {
         match regs.task_step() {
             TaskStep::None => (),
             TaskStep::InitializePainting      => self.initialize_for_painting(regs),
-            TaskStep::LoadSCB                 => self.load_scb(regs),
+            TaskStep::LoadSCB                 => self.load_scb(ram, regs),
             TaskStep::InitializeQuadrants     => self.initialize_quadrants_rendering(regs),
             TaskStep::InitializeQuadrant      => self.initialize_quadrant_render(regs),
-            TaskStep::RenderLinesStart        => self.render_lines_start(regs),
-            TaskStep::RenderPixelHeightStart  => self.render_pixel_height_start(regs),
-            TaskStep::RenderPixelsInLine      => self.render_pixels_in_line(regs, dma_ram),
-            TaskStep::RenderPixelheightEnd    => self.render_pixel_height_end(regs),
+            TaskStep::RenderLinesStart        => self.render_lines_start(ram, regs),
+            TaskStep::RenderPixelHeightStart  => self.render_pixel_height_start(ram, regs),
+            TaskStep::RenderPixelsInLine      => self.render_pixels_in_line(regs, ram),
+            TaskStep::RenderPixelheightEnd    => self.render_pixel_height_end(ram, regs),
             TaskStep::RenderLinesEnd          => self.render_lines_end(regs),
             TaskStep::NextQuadrant            => self.end_quadrant_render(regs),
             TaskStep::SpriteEnd               => regs.set_task(SuzyTask::EndSprite),
@@ -629,7 +655,7 @@ impl Renderer {
         regs.task() == SuzyTask::None
     }
 
-    pub fn push_sprite_data(&mut self, data: &[u8]) {
+    pub fn push_sprite_data(&mut self, data: u8) {
         self.sprite_data.push_data(data);
     }
 

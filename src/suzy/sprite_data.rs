@@ -13,7 +13,7 @@ pub enum LineType {
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SpriteData {
-    shift_reg: u128,
+    shift_reg: u16,
     bits_left: u16,
     shift_reg_count: u16,
     repeat_count: u16,
@@ -72,11 +72,9 @@ impl SpriteData {
         Ok(offset)
     }
 
-    pub fn push_data(&mut self, data: &[u8]) {
+    pub fn push_data(&mut self, data: u8) {
         self.shift_reg <<= SUZY_DATA_BUFFER_LEN * 8;
-        for (i, d) in data.iter().enumerate() {
-            self.shift_reg |= (*d as u128) << ((SUZY_DATA_BUFFER_LEN - (i as u16 + 1)) * 8);    
-        }
+        self.shift_reg |= (data as u16) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);    
         self.shift_reg_count += SUZY_DATA_BUFFER_LEN * 8;
         trace!("Push shift_reg 0x{:08x} shift_reg_count:{}", self.shift_reg, self.shift_reg_count);
     }

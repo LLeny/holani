@@ -32,7 +32,6 @@ pub enum SuzyTask {
     EndSprite,
     Multiply,
     Divide,
-    SpriteDataPeek,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -326,7 +325,7 @@ impl Suzy {
                     return;
                 }
                 let mem_access_count = self.renderer.sprite_end(&mut self.registers, dma_ram); 
-                self.registers.set_task_ticks_delay(mem_access_count * RAM_DMA_READ_TICKS as u16);
+                self.registers.set_task_ticks_delay(mem_access_count * RAM_PAGE_READ_TICKS as u16);
                 self.registers.set_task(SuzyTask::SpriteGo);  
             }             
             SuzyTask::Multiply => {
@@ -338,19 +337,7 @@ impl Suzy {
                 divide(&mut self.registers);
                 self.registers.reset_task();
                 trace!("< Divide");
-            } 
-            SuzyTask::SpriteDataPeek => { 
-                if !self.has_bus(bus) {
-                    return;
-                }
-                let mut data: Vec<u8> = vec!();
-                for _ in 0..SUZY_DATA_BUFFER_LEN {
-                    data.push(dma_ram.get(self.renderer.scb_curr_adr()));
-                    self.renderer.inc_scb_curr_adr();
-                }
-                self.renderer.push_sprite_data(&data);
-                self.registers.set_task(SuzyTask::SpriteGo);  
-            }   
+            }
             _ => self.registers.reset_task(),
         }
     }
