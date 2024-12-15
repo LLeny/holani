@@ -171,7 +171,7 @@ impl Timers {
                     1 => TimerReg::ControlA,
                     2 => TimerReg::Count,
                     3 => TimerReg::ControlB,
-                    _ => panic!()
+                    _ => unreachable!()
                 }
             )
         } else {
@@ -186,7 +186,7 @@ impl Timers {
                     5 => TimerReg::ControlA,
                     6 => TimerReg::Count,
                     7 => TimerReg::ControlB,
-                    _ => panic!()
+                    _ => unreachable!()
                 }
             )
         }
@@ -205,7 +205,7 @@ impl Timers {
                 TimerReg::ControlA => t.control_a(),
                 TimerReg::Count => t.count(),
                 TimerReg::ControlB => t.control_b(),
-                _ => panic!(),
+                _ => unreachable!(),
             },
             TimerType::Audio(t) => match cmd {
                 TimerReg::Backup => t.backup(),
@@ -235,7 +235,7 @@ impl Timers {
                     self.update_timer_trigger_tick(index);
                 },
                 TimerReg::ControlB => t.set_control_b(v),
-                _ => panic!(), 
+                _ => unreachable!(), 
             },
             TimerType::Audio(t) => match cmd {
                 TimerReg::Backup => t.set_backup(v),
