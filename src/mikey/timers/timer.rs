@@ -139,12 +139,12 @@ impl Timer{
 
     #[inline]
     fn period(&self) -> u8 {
-        self.control_a() & CTRLA_PERIOD_BIT
+        self.control_a & CTRLA_PERIOD_BIT
     }
 
     #[inline]
     pub fn interrupt_enabled(&self) -> bool {
-        self.control_a() & CTRLA_INTERRUPT_BIT != 0
+        self.control_a & CTRLA_INTERRUPT_BIT != 0
     }
  
     #[inline]
@@ -168,9 +168,7 @@ impl Timer{
 
     #[inline]
     pub fn set_next_trigger_tick(&mut self, next_trigger_tick: u64) {
-        if let Some(base) = self.clock_ticks {
-            self.next_trigger_tick = next_trigger_tick + base as u64; 
-        }
+        self.next_trigger_tick = next_trigger_tick + self.clock_ticks.unwrap() as u64; 
     }
 
     #[inline]

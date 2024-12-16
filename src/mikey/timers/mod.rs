@@ -65,7 +65,7 @@ impl Timers {
                 Timer::new(10, TIMER_LINKS[10], 0), 
                 Timer::new(11, TIMER_LINKS[11], 0),
             ],
-            timer_triggers: [0; TIMER_COUNT + AUDIO_TIMER_COUNT],
+            timer_triggers: [u64::MAX; TIMER_COUNT + AUDIO_TIMER_COUNT],
             ticks: 0,
             audio_timer_regs: [AudioTimerRegisters::new(); AUDIO_TIMER_COUNT],
             timers_triggered: [false; TIMER_COUNT + AUDIO_TIMER_COUNT],
@@ -112,15 +112,15 @@ impl Timers {
     pub fn tick_timer(timers: &mut [Timer], audio_regs: &mut [AudioTimerRegisters], triggereds: &mut [bool], id: usize, current_tick: u64) -> u8 {
         let timer = &mut timers[id];
 
-        timer.set_control_b(timer.control_b() & !CTRLB_BORROW_IN_BIT);
-        
-        if !timer.count_enabled() || (id >= TIMER_COUNT && audio_regs[id - TIMER_COUNT].disabled()) { 
-            timer.disable_trigger_tick();
-            triggereds[id] = false;
-            return 0;
-        }
-
-        timer.set_next_trigger_tick(current_tick);
+        if !timer.is_linked() {
+            timer.set_control_b(timer.control_b() & !CTRLB_BORROW_IN_BIT);        
+            if !timer.count_enabled() || (id >= TIMER_COUNT && audio_regs[id - TIMER_COUNT].disabled()) { 
+                timer.disable_trigger_tick();
+                triggereds[id] = false;
+                return 0;
+            }    
+            timer.set_next_trigger_tick(current_tick);
+        }         
 
         let mut int: u8;
         let audio = if id >= TIMER_COUNT {
