@@ -26,6 +26,12 @@ const CTRLB_LAST_CLOCK_BIT: u8 = 0b00000100;
 const CTRLB_BORROW_IN_BIT: u8 = 0b00000010;
 const CTRLB_BORROW_OUT_BIT: u8 = 0b00000001;
 
+macro_rules! is_audio {
+    ($index: expr) => {
+        ($index as usize) >= TIMER_COUNT
+    };
+}
+
 #[derive(Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum TimerReg {
     Backup = 0,
@@ -114,7 +120,7 @@ impl Timers {
 
         if !timer.is_linked() {
             timer.set_control_b(timer.control_b() & !CTRLB_BORROW_IN_BIT);        
-            if !timer.count_enabled() || (id >= TIMER_COUNT && audio_regs[id - TIMER_COUNT].disabled()) { 
+            if !timer.count_enabled() || (is_audio!(id) && audio_regs[id - TIMER_COUNT].disabled()) { 
                 timer.disable_trigger_tick();
                 triggereds[id] = false;
                 return 0;
@@ -123,7 +129,7 @@ impl Timers {
         }         
 
         let mut int: u8;
-        let audio = if id >= TIMER_COUNT {
+        let audio = if is_audio!(id) {
             Some(&mut audio_regs[id - TIMER_COUNT])
         } else {
             None
@@ -158,7 +164,7 @@ impl Timers {
                 }
                 return (
                     true,
-                    if timer.id() >= TIMER_COUNT as u8 {
+                    if is_audio!(timer.id()) {
                         audio.unwrap().done(timer)                        
                     } else {
                         timer.done()
@@ -224,7 +230,7 @@ impl Timers {
         match cmd {
             TimerReg::Backup => {
                 self.timers[index].set_backup(v);
-                if index >= TIMER_COUNT {
+                if is_audio!(index) {
                     self.audio_timer_regs[index - TIMER_COUNT].update_disabled(v)
                 };
             },
@@ -256,7 +262,7 @@ impl Timers {
 
     #[inline(always)]
     pub fn audio_out(&self, n: usize) -> i16 {
-        self.audio_timer_regs[n - TIMER_COUNT].output() as i16
+        self.audio_timer_regs[n].output() as i16
     }    
 }
 

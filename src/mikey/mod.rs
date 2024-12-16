@@ -578,10 +578,10 @@ impl Mikey {
     }
 
     pub fn audio_sample(&self) -> (i16, i16) {
-        let audio0 = self.timers.audio_out(8) as f32;
-        let audio1 = self.timers.audio_out(9) as f32;
-        let audio2 = self.timers.audio_out(10) as f32;
-        let audio3 = self.timers.audio_out(11) as f32;
+        let audio0 = self.timers.audio_out(0) as f32;
+        let audio1 = self.timers.audio_out(1) as f32;
+        let audio2 = self.timers.audio_out(2) as f32;
+        let audio3 = self.timers.audio_out(3) as f32;
         
         let left = ((
             audio0 * self.registers.attenuation_left(0) +
