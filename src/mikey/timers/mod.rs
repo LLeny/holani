@@ -65,7 +65,7 @@ impl Timers {
                 Timer::new(10, TIMER_LINKS[10], 0), 
                 Timer::new(11, TIMER_LINKS[11], 0),
             ],
-            timer_triggers: [0; 12],
+            timer_triggers: [0; TIMER_COUNT + AUDIO_TIMER_COUNT],
             ticks: 0,
             audio_timer_regs: [AudioTimerRegisters::new(); AUDIO_TIMER_COUNT],
             timers_triggered: [false; TIMER_COUNT + AUDIO_TIMER_COUNT],
@@ -94,7 +94,7 @@ impl Timers {
 
         self.ticks = current_tick;
 
-        for id in 0..TIMER_COUNT {
+        for id in 0..TIMER_COUNT+AUDIO_TIMER_COUNT {
             if self.timer_triggers[id] > self.ticks {
                 continue;
             }
@@ -103,14 +103,6 @@ impl Timers {
             if id == 4 {
                 int4_triggered = true;
             }
-        }
-
-        for id in TIMER_COUNT..TIMER_COUNT+AUDIO_TIMER_COUNT {
-            if self.timer_triggers[id] > self.ticks {
-                continue;
-            }
-            int |= Self::tick_timer(&mut self.timers, &mut self.audio_timer_regs, &mut self.timers_triggered, id, current_tick);
-            self.update_timer_trigger_tick(id);
         }
 
         (int, int4_triggered)
@@ -122,7 +114,7 @@ impl Timers {
 
         timer.set_control_b(timer.control_b() & !CTRLB_BORROW_IN_BIT);
         
-        if !timer.count_enabled() { 
+        if !timer.count_enabled() || (id >= TIMER_COUNT && audio_regs[id - TIMER_COUNT].disabled()) { 
             timer.disable_trigger_tick();
             triggereds[id] = false;
             return 0;
@@ -130,7 +122,7 @@ impl Timers {
 
         timer.set_next_trigger_tick(current_tick);
 
-        let int: u8;
+        let mut int: u8;
         let audio = if id >= TIMER_COUNT {
             Some(&mut audio_regs[id - TIMER_COUNT])
         } else {
@@ -142,14 +134,14 @@ impl Timers {
             return 0;
         } 
 
-        timer.linked_timer().map_or(int, |id| {
-            let linked_timer = &mut timers[id.get() as usize];
-            if !linked_timer.is_linked() {
-                int
-            } else {
-                int | Self::tick_timer(timers, audio_regs, triggereds, id.get() as usize, current_tick)
-            }               
-        })    
+        if let Some(lid) = timer.linked_timer() {
+            let linked_id = lid.get() as usize;
+            if timers[linked_id].is_linked() {
+                int |= Self::tick_timer(timers, audio_regs, triggereds, linked_id, current_tick);
+            }
+        }
+
+        int
     }
 
     pub fn timer_count_down(timer: &mut Timer, current_tick: u64, audio: Option<&mut AudioTimerRegisters>) -> (bool, u8) {

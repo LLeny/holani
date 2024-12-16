@@ -88,8 +88,7 @@ impl AudioTimerRegisters{
     #[allow(dead_code)]
     fn set_audio_feedback(&mut self, timer: &mut Timer, feedback: u16) {
         trace!("AudioTimerRegisters feedback = {}.", feedback);
-        let mut ctrla = timer.control_a();
-        ctrla &= !0b10000000;
+        let mut ctrla = timer.control_a() & !0b10000000;
         ctrla |= (feedback as u8) & 0b10000000; // B7=feedback bit 7
         timer.set_control_a_transaprent(ctrla);
         self.feedback = (feedback as u8) & 0b00111111;
@@ -153,6 +152,11 @@ impl AudioTimerRegisters{
         
         trace!("AudioTimerRegisters output:0x{:02x} {:?}.", self.output() as u8, self);
         0
+    }
+    
+    #[inline]
+    pub fn disabled(&self) -> bool {
+        self.disabled
     }
 }
 
