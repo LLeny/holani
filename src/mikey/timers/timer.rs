@@ -138,6 +138,12 @@ impl Timer{
     }
 
     #[inline]
+    pub fn set_count_transparent(&mut self, value: u8){
+        trace!("Timer #{} count = {}.", self.id, value);
+        self.count = value;
+    }
+
+    #[inline]
     fn period(&self) -> u8 {
         self.control_a & CTRLA_PERIOD_BIT
     }

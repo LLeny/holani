@@ -128,7 +128,7 @@ impl Timers {
         } else {
             None
         };
-        (triggereds[id], int) = Self::timer_count_down(timer, current_tick, audio);
+        (triggereds[id], int) = Self::timer_count_down(timer, audio);
 
         if !triggereds[id] {
             return 0;
@@ -144,24 +144,24 @@ impl Timers {
         int
     }
 
-    pub fn timer_count_down(timer: &mut Timer, current_tick: u64, audio: Option<&mut AudioTimerRegisters>) -> (bool, u8) {
+    pub fn timer_count_down(timer: &mut Timer, audio: Option<&mut AudioTimerRegisters>) -> (bool, u8) {
         timer.set_control_b((timer.control_b() & !CTRLB_BORROW_OUT_BIT) | CTRLB_BORROW_IN_BIT);
 
         match timer.count().cmp(&0) {
-            core::cmp::Ordering::Greater => timer.set_count(timer.count() - 1, current_tick),
+            core::cmp::Ordering::Greater => timer.set_count_transparent(timer.count() - 1),
             core::cmp::Ordering::Equal => {
                 if timer.reload_enabled() {
                     trace!("Timer #{} reload 0x{:02x} next trigger @ {}.", timer.id(), timer.backup(), timer.next_trigger_tick());
-                    timer.set_count(timer.backup(), current_tick);
+                    timer.set_count_transparent(timer.backup());
                 } else {
                     timer.disable_trigger_tick();
                 }
                 return (
                     true,
-                    if timer.id() < TIMER_COUNT as u8 {
-                        timer.done()
+                    if timer.id() >= TIMER_COUNT as u8 {
+                        audio.unwrap().done(timer)                        
                     } else {
-                        audio.unwrap().done(timer)
+                        timer.done()
                     });
             }
             _ => ()
