@@ -164,8 +164,8 @@ impl Timers {
                 }
                 return (
                     true,
-                    if is_audio!(timer.id()) {
-                        audio.unwrap().done(timer)                        
+                    if let Some(aud) = audio {
+                        aud.done(timer)                        
                     } else {
                         timer.done()
                     });
@@ -244,7 +244,7 @@ impl Timers {
             },
             TimerReg::ControlB => self.timers[index].set_control_b(v),
             TimerReg::Volume => self.audio_timer_regs[index - TIMER_COUNT].set_volume(v),
-            TimerReg::Feedback => self.audio_timer_regs[index - TIMER_COUNT].set_feedback(v, self.timers[index].backup()),
+            TimerReg::Feedback => self.audio_timer_regs[index - TIMER_COUNT].set_feedback(self.timers[index].backup(), v),
             TimerReg::Output => self.audio_timer_regs[index - TIMER_COUNT].set_output(v as i8),
             TimerReg::ShiftRegister => self.audio_timer_regs[index - TIMER_COUNT].set_shift_register(v), 
         }
