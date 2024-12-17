@@ -115,7 +115,7 @@ macro_rules! BBR {
             { _pins.sa(_pins.gd() as u16);},        
             { _pins.sa(_cpu.pc); _cpu.ad=(_pins.gd() & u8::pow(2, $b)) as u16;},
             { _pins.sa(_cpu.pc); if _cpu.ad != 0 { _cpu.ad=_cpu.pc.overflowing_add(1).0; _cpu.ir_step += 2 } },
-            { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add(_pins.gd() as u16).0 as u16; },
+            { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add((_pins.gd() as i8) as u16).0 as u16; },
             { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF)); if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) { _cpu.pc=_cpu.ad; _cpu.irq_pip>>=1; _cpu.nmi_pip>>=1; _pins.fetch(_cpu.pc); }; },
             { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
             panic!())
@@ -129,7 +129,7 @@ macro_rules! BBS {
             { _pins.sa(_pins.gd() as u16);},        
             { _pins.sa(_cpu.pc); _cpu.ad=(_pins.gd() & u8::pow(2, $b)) as u16;},
             { _pins.sa(_cpu.pc); if _cpu.ad == 0 {  _cpu.ad=_cpu.pc.overflowing_add(1).0; _cpu.ir_step += 2 } },
-            { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add(_pins.gd() as u16).0 as u16; },
+            { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add((_pins.gd() as i8) as u16).0 as u16; },
             { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF)); if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) { _cpu.pc=_cpu.ad; _cpu.irq_pip>>=1; _cpu.nmi_pip>>=1; _pins.fetch(_cpu.pc); }; },
             { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
             panic!())
