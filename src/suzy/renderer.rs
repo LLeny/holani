@@ -357,7 +357,7 @@ impl Renderer {
         " */
         if regs.sprsys_r_is_flag_set(SprSysR::v_stretching) {
             let size = regs.i16(SPRVSIZL);
-            let stretch = regs.i16(STRETCHL);
+            let stretch = if regs.sprctl1() & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS { regs.i16(STRETCHL) } else { 1 };
             regs.set_i16(SPRVSIZL, size + stretch * self.pixel_height as i16);
         } 
 
