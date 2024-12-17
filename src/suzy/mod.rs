@@ -236,7 +236,7 @@ impl Suzy {
     pub fn tick(&mut self, bus: &mut Bus, dma_ram: &mut Ram) {
         self.ticks += 1;       
         self.manage_bus(bus);
-        if self.pending_bus_request_ticks >= 0 || self.registers.data(SUZYBUSEN) != 1 {
+        if self.pending_bus_request_ticks >= 0 || self.registers.data(SUZYBUSEN) == 0 {
             return;
         }
         self.manage_ir(bus);
