@@ -78,6 +78,7 @@ impl Timers {
         }
     }
 
+    #[inline]
     pub fn vsync(&mut self) -> bool {
         if self.timers_triggered[2] {
             self.timers_triggered[2] = false;
@@ -86,12 +87,13 @@ impl Timers {
         false
     }
 
-    pub fn hsync(&mut self) -> bool {
+    #[inline]
+    pub fn hsync(&mut self) -> Option<u8> {
         if self.timers_triggered[0] {
             self.timers_triggered[0] = false;
-            return true;
+            return Some(self.timers[2].count());
         }
-        false
+        None
     }
 
     pub fn tick_all(&mut self, current_tick: u64) -> (u8, bool) { // bool: Timer 4 has a special treatment, triggered information without interrupt
@@ -153,24 +155,22 @@ impl Timers {
     pub fn timer_count_down(timer: &mut Timer, audio: Option<&mut AudioTimerRegisters>) -> (bool, u8) {
         timer.set_control_b((timer.control_b() & !CTRLB_BORROW_OUT_BIT) | CTRLB_BORROW_IN_BIT);
 
-        match timer.count().cmp(&0) {
-            core::cmp::Ordering::Greater => timer.set_count_transparent(timer.count() - 1),
-            core::cmp::Ordering::Equal => {
-                if timer.reload_enabled() {
-                    trace!("Timer #{} reload 0x{:02x} next trigger @ {}.", timer.id(), timer.backup(), timer.next_trigger_tick());
-                    timer.set_count_transparent(timer.backup());
-                } else {
-                    timer.disable_trigger_tick();
-                }
-                return (
-                    true,
-                    if let Some(aud) = audio {
-                        aud.done(timer)                        
-                    } else {
-                        timer.done()
-                    });
+        if timer.count() == 0 {
+            if timer.reload_enabled() {
+                trace!("Timer #{} reload 0x{:02x} next trigger @ {}.", timer.id(), timer.backup(), timer.next_trigger_tick());
+                timer.set_count_transparent(timer.backup());
+            } else {
+                timer.disable_trigger_tick();
             }
-            _ => ()
+            return (
+                true,
+                if let Some(aud) = audio {
+                    aud.done(timer)                        
+                } else {
+                    timer.done()
+                });
+        } else {
+            timer.set_count_transparent(timer.count() - 1)
         }
         (false, 0)
     }

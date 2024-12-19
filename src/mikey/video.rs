@@ -9,7 +9,7 @@ pub const LYNX_SCREEN_HEIGHT: u32 = 102;
 pub const SCREEN_BUFFER_LEN: usize = (LYNX_SCREEN_WIDTH * LYNX_SCREEN_HEIGHT) as usize;
 pub const RGB_SCREEN_BUFFER_LEN: usize = SCREEN_BUFFER_LEN * 3;
 pub const RGBA_SCREEN_BUFFER_LEN: usize = SCREEN_BUFFER_LEN * 4;
-const VBLANK_HSYNC_COUNT: u16 = 3;
+const VBLANK_VSYNC_COUNT: u8 = 102;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct VideoBuffer {
@@ -17,10 +17,6 @@ struct VideoBuffer {
     #[serde(default="create_rgb_buffer")]
     rgb_buffer: Vec<u8>,
     buffer_index: usize,
-    hsync_count: u16,
-    line_pixels_to_write: u8,
-    hblank_video_delay: u16,
-    hblank_video_delay_bkp: u16,
 }
 
 fn create_rgb_buffer() -> Vec<u8> {
@@ -36,6 +32,8 @@ pub struct Video {
     pix_buffer: u64,
     pix_buffer_available: u8,
     redraw_requested: bool,
+    display_row_buffer: Vec<u8>,
+    vsync_count: u8,
 }
 
 fn create_video_buffers() -> Vec<VideoBuffer> {
@@ -53,59 +51,23 @@ impl VideoBuffer {
         Self {
             rgb_buffer: vec![0; RGB_SCREEN_BUFFER_LEN],
             buffer_index: 0,
-            hsync_count: 0,
-            line_pixels_to_write: LYNX_SCREEN_WIDTH as u8,
-            hblank_video_delay: 0,
-            hblank_video_delay_bkp: 0,
         }
-    }
+    } 
 
-    pub fn set_pbkup(&mut self, pbkup: u8) {
-        /* "
-        Additionally, the magic 'P' counter has to be set to match the LCD scan rate. The formula is:
-        INT((((line time - .5us) / 15) * 4) -1)
-        " */
-        self.hblank_video_delay_bkp = 5 /* ?! */ * ((pbkup as f32 + 1.0) / 4.0 * 15.0 + 0.50) as u16;      
-        trace!("pbkup: {}, hblank_video_delay_bkp: {}", pbkup, self.hblank_video_delay_bkp);
-    }   
-
+    #[inline]
     pub fn reset(&mut self) {
-        trace!("reset");
+        trace!("reset buf index:{}", self.buffer_index);
         self.buffer_index = 0;
-        self.hsync_count = 0;
-        self.hblank_video_delay = self.hblank_video_delay_bkp;
     }
 
+    #[inline]
     pub fn push(&mut self, pix: &[u8; 3]) {
         trace!("push pixel {}", self.buffer_index);
-        self.line_pixels_to_write -= 1;
         self.rgb_buffer[self.buffer_index..self.buffer_index+3].copy_from_slice(pix);
         self.buffer_index += 3;
     }
 
-    pub fn h_sync(&mut self) {
-        self.hsync_count += 1;
-        self.hblank_video_delay = self.hblank_video_delay_bkp;
-        self.line_pixels_to_write = LYNX_SCREEN_WIDTH as u8;
-        trace!("hsync count:{}", self.hsync_count);
-    }
-
-    pub fn tick(&mut self) {
-        if self.hblank_video_delay > 0 {
-            self.hblank_video_delay -= 1;
-        }
-    }
-
-    pub fn is_in_vblank(&self) -> bool {
-        self.hsync_count < VBLANK_HSYNC_COUNT
-    }
-
-    pub fn is_writing_enabled(&self) -> bool {
-        self.hblank_video_delay == 0 && 
-        self.line_pixels_to_write > 0 && 
-        self.buffer_index < RGB_SCREEN_BUFFER_LEN
-    }
-
+    #[inline]
     pub fn screen(&self) -> &Vec<u8>{
         &self.rgb_buffer
     }
@@ -119,17 +81,22 @@ impl Video {
             pix_buffer: 0,
             pix_buffer_available: 0,
             redraw_requested: false,
+            display_row_buffer: vec![],
+            vsync_count: 0,
         }
     }
 
+    #[inline]
     fn swap_buffers(&mut self) {
         self.draw_buffer = 1 - self.draw_buffer;
     }
 
+    #[inline]
     fn draw_buffer(&mut self) -> &mut VideoBuffer {
         &mut self.buffers[self.draw_buffer]
     }
 
+    #[inline]
     pub fn redraw_requested(&mut self) -> bool {
         if self.redraw_requested {
             self.redraw_requested = false;
@@ -147,6 +114,7 @@ impl Video {
         trace!("push_pix_buffer 0x{:04X}", self.pix_buffer);
     }
 
+    #[inline]
     pub fn pop_pixel(&mut self) -> u8 {
         let pix = (self.pix_buffer & 0b1111) as u8;
         self.pix_buffer >>= 4;
@@ -154,33 +122,37 @@ impl Video {
         pix
     }
 
-    pub fn set_pbkup(&mut self, value: u8) {
-        self.buffers[0].set_pbkup(value);
-        self.buffers[1].set_pbkup(value);
+    #[inline]
+    pub fn hsync(&mut self, count: u8, regs: &MikeyRegisters) {      
+        self.vsync_count = count;
+        self.send_row_buffer(regs);
+        if count == VBLANK_VSYNC_COUNT + 2 {
+            self.swap_buffers();
+            self.draw_buffer().reset();
+            self.pix_buffer_available = 0;
+            self.redraw_requested = true;
+        }
     }
 
-    pub fn vsync(&mut self) {
-        self.swap_buffers();
-        self.draw_buffer().reset();
-        self.pix_buffer_available = 0;
-        self.redraw_requested = true;
-    }  
-
-    pub fn hsync(&mut self) {
-        self.draw_buffer().h_sync();
+    fn send_row_buffer(&mut self, regs: &MikeyRegisters) {
+        let draw_buffer = &mut self.buffers[self.draw_buffer];
+        for pixel in &self.display_row_buffer {
+            let rgb = regs.get_pen(*pixel);
+            draw_buffer.push(rgb);
+        }
+        self.display_row_buffer.clear();
     }
 
+    #[inline]
     fn is_available(&mut self) -> bool {
-        !self.draw_buffer().is_in_vblank() && self.draw_buffer().is_writing_enabled()
+        self.vsync_count < VBLANK_VSYNC_COUNT && self.display_row_buffer.len() < LYNX_SCREEN_WIDTH as usize
     }
 
-    pub fn tick(&mut self, regs: &MikeyRegisters) {
-        self.draw_buffer().tick();
-
+    #[inline]
+    pub fn tick(&mut self) {
         if self.pix_buffer_available > 0 && self.is_available() {
             let pixel = self.pop_pixel();
-            let rgb = regs.get_pen(pixel);
-            self.buffers[self.draw_buffer].push(rgb);
+            self.display_row_buffer.push(pixel);
         }
     }
 
@@ -189,11 +161,12 @@ impl Video {
             return None;
         }
         match self.pix_buffer_available {
-            0 => Some(self.draw_buffer().buffer_index as u16/6),
+            0 => Some(self.draw_buffer().buffer_index as u16/6 + self.display_row_buffer.len() as u16/2),
             _ => None
         }
     }
 
+    #[inline]
     pub fn rgb_screen(&self) -> &Vec<u8> {
         self.buffers[1-self.draw_buffer].screen()
     }

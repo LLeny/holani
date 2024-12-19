@@ -137,16 +137,12 @@ impl Mikey {
             }
         }
         
-        let vsync = self.timers.vsync();
-        let hsync = self.timers.hsync();
-
-        if vsync {
-            self.video.vsync();
-        } else if hsync {
-            self.video.hsync();
+        if let Some(hsync_count) = self.timers.hsync() {
+            trace!("hsync {}", self.ticks);
+            self.video.hsync(hsync_count, &self.registers);
         } 
 
-        self.video.tick(&self.registers);
+        self.video.tick();
 
         if int != 0 {
             int |= self.registers.data(INTSET);
@@ -511,7 +507,7 @@ impl Mikey {
                 bus.set_status(BusStatus::PokeDone); 
             }   
             MikeyInstruction::PokePbkup => { 
-                self.video.set_pbkup(self.registers.data_r() as u8);
+                self.registers.set_data(PBKUP, self.registers.data_r() as u8); 
                 self.registers.reset_ir(); 
                 bus.set_status(BusStatus::PokeDone); 
             }
