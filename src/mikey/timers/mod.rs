@@ -9,7 +9,7 @@ use crate::mikey::*;
 
 const TIMER_TICKS_COUNT: u16 = (0.000001 / CRYSTAL_TICK_LENGTH) as u16; // 1us/62.5ns
 
-const TIMER_LINKS: [Option<NonZeroU8>; 12] = [Some(NonZero::new(2).unwrap()), Some(NonZero::new(3).unwrap()), Some(NonZero::new(4).unwrap()), Some(NonZero::new(5).unwrap()), None, Some(NonZero::new(7).unwrap()), None, Some(NonZero::new(8).unwrap()), Some(NonZero::new(9).unwrap()), Some(NonZero::new(10).unwrap()), Some(NonZero::new(11).unwrap()), Some(NonZero::new(1).unwrap())];
+const TIMER_LINKS: [Option<NonZeroU8>; 12] = unsafe { [Some(NonZero::new_unchecked(2)), Some(NonZero::new_unchecked(3)), Some(NonZero::new_unchecked(4)), Some(NonZero::new_unchecked(5)), None, Some(NonZero::new_unchecked(7)), None, Some(NonZero::new_unchecked(8)), Some(NonZero::new_unchecked(9)), Some(NonZero::new_unchecked(10)), Some(NonZero::new_unchecked(11)), Some(NonZero::new_unchecked(1))] };
 const TIMER_COUNT: usize = 8;
 const AUDIO_TIMER_COUNT: usize = 4;
 
