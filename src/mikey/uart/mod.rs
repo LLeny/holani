@@ -32,6 +32,12 @@ pub struct Uart {
     transmit_holding_register: Option<u8>,
     redeye_pin: ComlynxCable,
     generator_delay: u8,
+    #[cfg(feature = "comlynx_external")]
+    #[serde(skip)]
+    ext_tx: Option<kanal::Sender<u8>>,
+    #[cfg(feature = "comlynx_external")]
+    #[serde(skip)]
+    ext_rx: Option<kanal::Receiver<u8>>,
 }
 
 impl Uart {
@@ -44,8 +50,18 @@ impl Uart {
             break_count: 0,
             transmit_register: vec![],
             transmit_holding_register: None,
-            redeye_pin: ComlynxCable::default(),
+            redeye_pin: ComlynxCable::default(),      
+            #[cfg(feature = "comlynx_external")]            
+            ext_tx: None,
+            #[cfg(feature = "comlynx_external")]
+            ext_rx: None, 
         }
+    }
+  
+    #[cfg(feature = "comlynx_external")]
+    pub fn set_external_comlynx(&mut self, ext_tx: kanal::Sender<u8>, ext_rx: kanal::Receiver<u8>) {
+        self.ext_tx = Some(ext_tx);
+        self.ext_rx = Some(ext_rx);
     }
 
     pub fn reset(&mut self) {
@@ -69,6 +85,12 @@ impl Uart {
                 return false;
             }
         }
+
+        #[cfg(feature = "comlynx_external")]
+        if let Ok(Some(data)) = self.ext_rx.as_ref().unwrap().try_recv() {
+            self.set_transmit_holding_buffer(regs, data);
+        }
+
         /* "
         Both the transmit and receive interrupts are 'level' sensitive, rather than 'edge' sensitive. 
         This means that an interrupt will be continuously generated as long as it is enabled and its UART buffer is ready.
@@ -190,7 +212,9 @@ impl Uart {
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
                 } else {
                     self.receive_register = Some(self.receive_register_buffer);
-                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                                        
+                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                
+                    #[cfg(feature = "comlynx_external")]
+                    let _ = self.ext_tx.as_ref().unwrap().send(self.receive_register_buffer);                    
                 }
                 self.receive_register_len = 0;
             }
