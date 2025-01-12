@@ -87,8 +87,12 @@ impl Uart {
         }
 
         #[cfg(feature = "comlynx_external")]
-        if let Ok(Some(data)) = self.ext_rx.as_ref().unwrap().try_recv() {
-            self.set_transmit_holding_buffer(regs, data);
+        if let Ok(Some(rx_data)) = self.ext_rx.as_ref().unwrap().try_recv() {
+            self.receive_register = Some(rx_data);
+            regs.serctl_r_enable_flag(SerCtlR::rx_rdy);     
+            regs.serctl_r_disable_flag(SerCtlR::par_err);
+            regs.serctl_r_disable_flag(SerCtlR::overrun);
+            regs.serctl_r_disable_flag(SerCtlR::frame_err);
         }
 
         /* "
@@ -127,6 +131,9 @@ impl Uart {
     }
 
     fn load_transmit_data(&mut self, mut data: u8, regs: &mut MikeyRegisters) {
+        #[cfg(feature = "comlynx_external")]
+        let _ = self.ext_tx.as_ref().unwrap().send(data);  
+
         self.transmit_register.clear();
         // stop bit 
         self.transmit_register.push(RedeyeStatus::High);
@@ -150,7 +157,7 @@ impl Uart {
             data >>= 1;
         }
         // start bit 
-        self.transmit_register.push(RedeyeStatus::Low);
+        self.transmit_register.push(RedeyeStatus::Low);        
     }
 
     fn rx(&mut self, regs: &mut MikeyRegisters) {
@@ -212,9 +219,7 @@ impl Uart {
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
                 } else {
                     self.receive_register = Some(self.receive_register_buffer);
-                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                
-                    #[cfg(feature = "comlynx_external")]
-                    let _ = self.ext_tx.as_ref().unwrap().send(self.receive_register_buffer);                    
+                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                               
                 }
                 self.receive_register_len = 0;
             }

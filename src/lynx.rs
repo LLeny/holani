@@ -31,10 +31,10 @@ pub struct Lynx {
     switches_cache: Switches,
     #[cfg(feature = "comlynx_external")]
     #[serde(skip)]
-    comlynx_ext_tx: Option<kanal::Sender<u8>>,
+    comlynx_ext_tx: Option<kanal::Receiver<u8>>,
     #[cfg(feature = "comlynx_external")]
     #[serde(skip)]
-    comlynx_ext_rx: Option<kanal::Receiver<u8>>,
+    comlynx_ext_rx: Option<kanal::Sender<u8>>,
 }
 
 impl Lynx {
@@ -56,9 +56,9 @@ impl Lynx {
             last_ir_pc: 0,
             switches_cache: Switches::empty(),
             #[cfg(feature = "comlynx_external")]
-            comlynx_ext_tx: Some(comlynx_ext_rx_tx),
+            comlynx_ext_tx: Some(comlynx_ext_tx_rx),
             #[cfg(feature = "comlynx_external")]
-            comlynx_ext_rx: Some(comlynx_ext_tx_rx),
+            comlynx_ext_rx: Some(comlynx_ext_rx_tx),
         };
 
         #[cfg(feature = "comlynx_external")]
@@ -346,13 +346,13 @@ impl Lynx {
     }
 
     #[cfg(feature = "comlynx_external")]
-    pub fn comlynx_ext_tx(&mut self, data: u8) {
-        let _ = self.comlynx_ext_tx.as_ref().unwrap().send(data);
+    pub fn comlynx_ext_rx(&mut self, data: u8) {
+        let _ = self.comlynx_ext_rx.as_ref().unwrap().send(data);
     }
 
     #[cfg(feature = "comlynx_external")]
-    pub fn comlynx_ext_rx(&mut self) -> Option<u8> {
-        self.comlynx_ext_rx.as_ref().unwrap().try_recv().unwrap_or_default()
+    pub fn comlynx_ext_tx(&mut self) -> Option<u8> {
+        self.comlynx_ext_tx.as_ref().unwrap().try_recv().unwrap_or_default()
     }
 }
 
