@@ -207,8 +207,12 @@ pub const BLUEREDD: u16 = 0xfdbd;
 pub const BLUEREDE: u16 = 0xfdbe;
 pub const BLUEREDF: u16 = 0xfdbf;
 
-pub const IODAT_CAD: u8 = 0b00000010;
-pub const IODAT_AUDIN: u8 = 0b00010000;
+pub const IODAT_AUDIN: u8   = 0b00010000;
+pub const IODAT_REST: u8    = 0b00001000;
+pub const IODAT_NOEXP: u8   = 0b00000100;
+pub const IODAT_CAD: u8     = 0b00000010;
+pub const IODAT_EXTPW: u8   = 0b00000001;
+
 pub const SYSCTL1_CAS: u8 = 0b00000001;
 pub const SYSCTL1_POWER: u8 = 0b00000010;
 

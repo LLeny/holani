@@ -288,7 +288,7 @@ impl M6502 {
                 al += 6;
             }
             let mut ah: u8 = (self.a >> 4) + (val >> 4) + (if al > 0x0F {1} else {0});
-            if (self.a + val + c) == 0 {
+            if (self.a.overflowing_add(val).0.overflowing_add(c).0) == 0 {
                 self.flags |= M6502Flags::Z;
             }
             else if ah & 0x08 != 0 {

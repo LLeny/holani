@@ -69,6 +69,7 @@ pub struct Mikey {
     disp_addr: u16,
     is_flipped: bool,
     bus_grant_bkup: Option<bool>,
+    comlynx_cable_present: bool,
 }
 
 impl Mikey {
@@ -87,6 +88,7 @@ impl Mikey {
             is_flipped: false,
             mikey_bus_owner: MikeyBusOwner::Cpu,
             bus_grant_bkup: None,
+            comlynx_cable_present: false,
         }
     }
 
@@ -438,13 +440,31 @@ impl Mikey {
                 bus.set_status(BusStatus::PokeDone); 
             }
             MikeyInstruction::PeekIodat => { 
-                let mut iodat = self.registers.data(INTSET);
+                let iodat = self.registers.data(IODAT);
+                let iodir = self.registers.data(IODIR);
+                let mut v : u8 = 0;
                 if cart.audin() {
-                    iodat |= IODAT_AUDIN;
+                    v |= IODAT_AUDIN;
                 } else {
-                    iodat &= !IODAT_AUDIN;
+                    v &= !IODAT_AUDIN;
                 }
-                bus.set_data(iodat); 
+                if iodir & IODAT_EXTPW != 0 {
+                    v |= iodat & IODAT_EXTPW;
+                } else  {
+                    v |= IODAT_EXTPW;
+                }
+                if iodir & IODAT_CAD != 0 {
+                    v |= iodat & IODAT_CAD;
+                }
+                if iodir & IODAT_NOEXP != 0 {
+                    v |= iodat & IODAT_NOEXP;
+                } else if self.comlynx_cable_present {
+                    v |= IODAT_NOEXP;
+                }
+                if iodir & IODAT_REST != 0 {
+                    v |= iodat & IODAT_REST;
+                }
+                bus.set_data(v); 
                 bus.set_status(BusStatus::PeekDone); 
                 self.registers.reset_ir();
             }
@@ -619,6 +639,10 @@ impl Mikey {
     
     pub fn bus_owner(&self) -> MikeyBusOwner {
         self.mikey_bus_owner
+    }
+    
+    pub fn set_comlynx_cable_present(&mut self, comlynx_cable_present: bool) {
+        self.comlynx_cable_present = comlynx_cable_present;
     }
 }
 

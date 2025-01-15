@@ -332,9 +332,14 @@ impl Lynx {
         self.ram.data()
     }
 
+    pub fn set_comlynx_cable_present(&mut self, present: bool) {
+        self.mikey.set_comlynx_cable_present(present);
+    }
+
     #[cfg(not(feature = "comlynx_shared_memory"))]
     pub fn set_comlynx_cable(&mut self, cable: &ComlynxCable) {
         self.mikey.set_comlynx_cable(cable);
+        self.mikey.set_comlynx_cable_present(true);
     }
 
     pub fn comlynx_cable(&self) -> &ComlynxCable {
