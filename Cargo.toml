@@ -3,6 +3,12 @@ name = "holani"
 version = "0.9.6"
 edition = "2021"
 rust-version = "1.82"
+license-file = "LICENSE"
+description = "A cycle-stepped Atari Lynx emulator"
+repository = "https://github.com/LLeny/holani"
+readme = "README.md"
+keywords = ["6502", "atari", "lynx", "emulator"]
+categories = ["emulators", "games"]
 
 [dependencies]
 env_logger = { version = "0.11.6", default-features = false, features = [ "auto-color", "humantime", ] }
