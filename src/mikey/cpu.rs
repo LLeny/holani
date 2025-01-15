@@ -15,7 +15,7 @@ macro_rules! NOP11 {
     () => {
         IR_STEPS!(_cpu,_pins,
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!(), panic!(), panic!(), panic!(), panic!())
+            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
     };
 }
 
@@ -24,7 +24,7 @@ macro_rules! NOP12 {
         IR_STEPS!(_cpu,_pins,
             { _pins.sa(_cpu.pc); },
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!(), panic!(), panic!(), panic!())
+            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
     };
 }
 
@@ -33,7 +33,7 @@ macro_rules! NOP22 {
         IR_STEPS!(_cpu,_pins,
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!(), panic!(), panic!(), panic!())
+            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
     };
 }
 
@@ -43,7 +43,7 @@ macro_rules! NOP23 {
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.sa(_cpu.pc); },
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!(), panic!(), panic!())
+            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
     };
 }
 
@@ -54,7 +54,7 @@ macro_rules! NOP24 {
             { _pins.sa(_cpu.pc); },
             { _pins.sa(_cpu.pc); },
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!(), panic!())
+            unreachable!(), unreachable!(), unreachable!(), unreachable!())
     };
 }
 
@@ -65,7 +65,7 @@ macro_rules! NOP34 {
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.sa(_cpu.pc); },
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!(), panic!())
+            unreachable!(), unreachable!(), unreachable!(), unreachable!())
     };
 }
 
@@ -91,7 +91,7 @@ macro_rules! RMB {
             { _cpu.ad=_pins.gd() as u16 & !(u16::pow(2, $b));},
             { _pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);},
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!() )                
+            unreachable!(), unreachable!(), unreachable!() )                
     };
 }
 
@@ -104,7 +104,7 @@ macro_rules! SMB {
             { _cpu.ad=_pins.gd() as u16 | u16::pow(2, $b);},
             { _pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);},
             { _pins.fetch(_cpu.pc);} ,
-            panic!(), panic!(), panic!() )
+            unreachable!(), unreachable!(), unreachable!() )
     };
 }
 
@@ -118,7 +118,7 @@ macro_rules! BBR {
             { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add((_pins.gd() as i8) as u16).0 as u16; },
             { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF)); if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) { _cpu.pc=_cpu.ad; _cpu.irq_pip>>=1; _cpu.nmi_pip>>=1; _pins.fetch(_cpu.pc); }; },
             { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
-            panic!())
+            unreachable!())
     };
 }
 
@@ -132,7 +132,7 @@ macro_rules! BBS {
             { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add((_pins.gd() as i8) as u16).0 as u16; },
             { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF)); if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) { _cpu.pc=_cpu.ad; _cpu.irq_pip>>=1; _cpu.nmi_pip>>=1; _pins.fetch(_cpu.pc); }; },
             { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
-            panic!())
+            unreachable!())
     };
 }
 
@@ -606,7 +606,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.ad); _cpu.ad +=1;_cpu.flags|=M6502Flags::I|M6502Flags::B;_cpu.break_flags=M6502BreakFlags::empty(); },
                 { _pins.sa(_cpu.ad);_cpu.ad=_pins.gd() as u16; },
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);},
-                panic!() ),
+                unreachable!() ),
             
             /* 0x01 ORA (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -616,7 +616,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
             
             /* 0x02 NOP 2 2 */
             NOP22!(),
@@ -631,14 +631,14 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad|=_cpu.a as u16;_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x05 ORA zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x06 ASL zp */ 
             IR_STEPS!(_cpu,_pins,
@@ -647,7 +647,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x07 RMB0 */ 
             RMB!(0),
@@ -657,19 +657,19 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);} ,
                 { _pins.sad(0x0100|(_cpu.s as u16),(_cpu.flags|M6502Flags::X|M6502Flags::B).bits());_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x09 ORA # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x0A ASL A */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a=_cpu.asl(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x0B NOP 1 1 */ 
             NOP11!(),
@@ -682,7 +682,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad|=_cpu.a as u16;_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x0D ORA abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -690,7 +690,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x0E ASL abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -700,7 +700,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x0F BBR0 */ 
             BBR!(0),
@@ -711,7 +711,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if!(_cpu.flags&M6502Flags::N).is_empty(){_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00){_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x11 ORA (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -721,7 +721,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x12 ORA (zp), 2, 5, A ∨ M → A */
             IR_STEPS!(_cpu,_pins,
@@ -730,7 +730,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /* 0x13 NOP 1 1 */ 
             NOP11!(),
@@ -742,7 +742,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad&=!(_cpu.a as u16);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x15 ORA zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -750,7 +750,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x16 ASL zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -760,7 +760,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x17 RMB1 */ 
             RMB!(1),
@@ -769,7 +769,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags&=!M6502Flags::C;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x19 ORA abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -778,13 +778,13 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x1A INC A, 1, 2, A + 1 → A */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a = _cpu.a.overflowing_add(1).0; _cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x1B NOP 1 1 */ 
             NOP11!(),
@@ -797,7 +797,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad&=!(_cpu.a as u16);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x1D ORA abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -806,7 +806,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x1E ASL abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -817,7 +817,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!() ),
+                unreachable!() ),
 
             /*0x1F BBR1 */ 
             BBR!(1),
@@ -830,7 +830,7 @@ impl M6502Stepper {
                 { _pins.sad(0x0100|(_cpu.s as u16),_cpu.pc as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x21 AND (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -840,7 +840,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x22 Nop 2 2 */
             NOP22!(),
@@ -853,14 +853,14 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x25 AND zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x26 ROL zp */ 
             IR_STEPS!(_cpu,_pins,
@@ -869,7 +869,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x27 RMB2 */ 
             RMB!(2),
@@ -880,19 +880,19 @@ impl M6502Stepper {
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
                 { _pins.sa(0x0100|(_cpu.s as u16));} ,
                 { _cpu.flags=M6502Flags::from_bits(_pins.gd()).unwrap()&!(M6502Flags::B|M6502Flags::X);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x29 AND # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x2A ROLA */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a=_cpu.rol(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x2B NOP 1 1 */ 
             NOP11!(),
@@ -903,7 +903,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x2D AND abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -911,7 +911,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x2E ROL abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -921,7 +921,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x2F BBR2 */ 
             BBR!(2),
@@ -932,7 +932,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if(_cpu.flags&M6502Flags::N).is_empty(){_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x31 AND (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -942,7 +942,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x32 AND (zp), 2, 5, A ∧ M → A */
             IR_STEPS!(_cpu,_pins,
@@ -951,7 +951,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /* 0x33 NOP 1 1 */ 
             NOP11!(),
@@ -961,7 +961,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.ad=_pins.gd() as u16;_pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x35 AND zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -969,7 +969,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x36 ROL zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -979,7 +979,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x37 RMB3 */ 
             RMB!(3),
@@ -988,7 +988,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags|=M6502Flags::C;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x39 AND abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -997,13 +997,13 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x3A DEC A, 2, 1, A - 1 → A */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a = _cpu.a.overflowing_sub(1).0; _cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x3B NOP 1 1 */ 
             NOP11!(),
@@ -1014,7 +1014,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x3D AND abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1023,7 +1023,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x3E ROL abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1034,7 +1034,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!() ),
+                unreachable!() ),
 
             /*0x3F BBR3 */ 
             BBR!(3),
@@ -1047,7 +1047,7 @@ impl M6502Stepper {
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;_cpu.flags=M6502Flags::from_bits(_pins.gd()).unwrap()&!(M6502Flags::B|M6502Flags::X);} ,
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x41 EOR (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -1057,7 +1057,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x42 NOP 2 2 */
             NOP22!(),
@@ -1073,7 +1073,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x46 LSR zp */ 
             IR_STEPS!(_cpu,_pins,
@@ -1082,7 +1082,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x47 RMB4 */ 
             RMB!(4),
@@ -1092,19 +1092,19 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);} ,
                 { _pins.sad(0x0100|(_cpu.s as u16),_cpu.a);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x49 EOR # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x4A LSRA */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a=_cpu.lsr(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x4B NOP 1 1 */ 
             NOP11!(),
@@ -1114,7 +1114,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; _cpu.ad=_pins.gd() as u16; },
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad; _pins.fetch(_cpu.pc); } ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x4D EOR abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1122,7 +1122,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x4E LSR abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1132,7 +1132,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x4F BBR4 */ 
             BBR!(4),
@@ -1143,7 +1143,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if!(_cpu.flags&M6502Flags::V).is_empty(){_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x51 EOR (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1153,7 +1153,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x52 EOR (zp), 2, 5, A ⊻ M → A */
             IR_STEPS!(_cpu,_pins,
@@ -1162,7 +1162,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
             
             /* 0x53 NOP 1 1 */ 
             NOP11!(),
@@ -1176,7 +1176,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x56 LSR zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1186,7 +1186,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x57 RMB5 */ 
             RMB!(5),
@@ -1195,7 +1195,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags&=!M6502Flags::I;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x59 EOR abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1204,14 +1204,14 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x5A PHY, 1, 3, Y↑ */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _pins.sad(0x0100|(_cpu.s as u16),_cpu.y);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x5B NOP 1 1 */ 
             NOP11!(),
@@ -1226,7 +1226,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x5E LSR abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1237,7 +1237,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!() ),
+                unreachable!() ),
 
             /*0x5F BBR5 */ 
             BBR!(5),
@@ -1250,7 +1250,7 @@ impl M6502Stepper {
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x61 ADC (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -1260,7 +1260,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x62 Nop 2 2 */
             NOP22!(),
@@ -1273,14 +1273,14 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x65 ADC zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x66 ROR zp */ 
             IR_STEPS!(_cpu,_pins,
@@ -1289,7 +1289,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x67 RMB6 */ 
             RMB!(6),
@@ -1300,19 +1300,19 @@ impl M6502Stepper {
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
                 { _pins.sa(0x0100|(_cpu.s as u16));} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x69 ADC # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x6A ROR A */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a=_cpu.ror(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x6B NOP 1 1 */ 
             NOP11!(),
@@ -1324,7 +1324,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad & 0xFF00)|((_cpu.ad+1)&0x00FF));_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x6D ADC abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1332,7 +1332,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x6E ROR abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1342,7 +1342,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x6F BBR6 */ 
             BBR!(6),
@@ -1353,7 +1353,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if(_cpu.flags&M6502Flags::V).is_empty(){_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x71 ADC (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1363,7 +1363,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x72 ADC (zp), 2, 5-6, A + M + C → A, C */
             IR_STEPS!(_cpu,_pins,
@@ -1372,7 +1372,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ), 
+                unreachable!(), unreachable!(), unreachable!() ), 
             
             /* 0x73 NOP 1 1 */ 
             NOP11!(),
@@ -1383,7 +1383,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x75 ADC zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1391,7 +1391,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x76 ROR zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1401,7 +1401,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x77 RMB7 */ 
             RMB!(7),
@@ -1410,7 +1410,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags|=M6502Flags::I;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x79 ADC abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1419,7 +1419,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x7A PLY, 1, 4, Y↑ */ 
             IR_STEPS!(_cpu,_pins,
@@ -1427,7 +1427,7 @@ impl M6502Stepper {
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
                 { _pins.sa(0x0100|(_cpu.s as u16));} ,
                 { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x7B NOP 1 1 */ 
             NOP11!(),
@@ -1440,7 +1440,7 @@ impl M6502Stepper {
                 { _cpu.ad=_cpu.ad.overflowing_add(_cpu.x as u16).0; _pins.sa(_cpu.ad);} ,
                 { _pins.sa(_cpu.ad+1);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad; _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x7D ADC abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1449,7 +1449,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x7E ROR abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1460,7 +1460,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!() ),
+                unreachable!() ),
 
             /*0x7F BBR7 */ 
             BBR!(7),
@@ -1470,7 +1470,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x81 STA (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -1480,7 +1480,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x82 Nop 2 2 */ 
             NOP22!(),
@@ -1493,21 +1493,21 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x85 STA zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x86 STX zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x87 SMB0 */ 
             SMB!(0),
@@ -1516,20 +1516,20 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.y = _cpu.y.overflowing_sub(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x89 BIT # , 2, 3, A ∧ M, M7 → N, M6 → V */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_cpu.pc); _cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.bit(_cpu.ad as u8);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x8A TXA */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a=_cpu.x;_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x8B NOP 1 1 */ 
             NOP11!(),
@@ -1540,7 +1540,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x8D STA abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1548,7 +1548,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x8E STX abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1556,7 +1556,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x8F BBS0 */ 
             BBS!(0),
@@ -1567,7 +1567,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if !(_cpu.flags&M6502Flags::C).is_empty() {_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x91 STA (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1577,7 +1577,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0x92 STA (zp), 2, 5, A → M */ 
             IR_STEPS!(_cpu,_pins,
@@ -1586,7 +1586,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
             
             /* 0x93 NOP 1 1 */ 
             NOP11!(),
@@ -1597,7 +1597,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x95 STA zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1605,7 +1605,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x96 STX zp,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1613,7 +1613,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0x00FF);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x97 SMB1 */ 
             SMB!(1),
@@ -1622,7 +1622,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.a=_cpu.y;_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x99 STA abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1631,13 +1631,13 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x9A TXS */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.s=_cpu.x;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x9B NOP 1 1 */ 
             NOP11!(),
@@ -1648,7 +1648,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x9D STA abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1657,7 +1657,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x9E STZ abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1666,7 +1666,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0x9F BBS1 */ 
             BBS!(1),
@@ -1675,7 +1675,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xA1 LDA (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -1685,13 +1685,13 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xA2 LDX # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xA3 NOP 1 1 */ 
             NOP11!(),
@@ -1701,21 +1701,21 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xA5 LDA zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xA6 LDX zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xA7 SMB2 */ 
             SMB!(2),
@@ -1724,19 +1724,19 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.y=_cpu.a;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xA9 LDA # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xAA TAX */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.x=_cpu.a;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xAB NOP 1 1 */ 
             NOP11!(),
@@ -1747,7 +1747,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xAD LDA abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1755,7 +1755,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xAE LDX abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1763,7 +1763,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xAF BBS2 */ 
             BBS!(2),
@@ -1774,7 +1774,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if (_cpu.flags&M6502Flags::C).is_empty() {_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xB1 LDA (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1784,7 +1784,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xB2 LDA (zp), 2, 5, M → A */ 
             IR_STEPS!(_cpu,_pins,
@@ -1793,7 +1793,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
             
             /* 0xB3 NOP 1 1 */ 
             NOP11!(),
@@ -1804,7 +1804,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xB5 LDA zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1812,7 +1812,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xB6 LDX zp,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1820,7 +1820,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0x00FF);} ,
                 { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xB7 SMB3 */ 
             SMB!(3),
@@ -1829,7 +1829,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags&=!M6502Flags::V;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xB9 LDA abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1838,13 +1838,13 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|(_cpu.ad.overflowing_add(_cpu.y as u16).0 & 0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xBA TSX */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.x=_cpu.s;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xBB NOP 1 1 */ 
             NOP11!(),
@@ -1856,7 +1856,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xBD LDA abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -1865,7 +1865,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xBE LDX abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1874,7 +1874,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xBF BBS3 */ 
             BBS!(3),
@@ -1883,7 +1883,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xC1 CMP (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -1893,7 +1893,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xC2 NOP 2 2 */ 
             NOP22!(),
@@ -1906,14 +1906,14 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xC5 CMP zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xC6 DEC zp */ 
             IR_STEPS!(_cpu,_pins,
@@ -1922,7 +1922,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xC7 SMB4 */ 
             SMB!(4),
@@ -1931,19 +1931,19 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.y = _cpu.y.overflowing_add(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xC9 CMP # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xCA DEX */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.x=_cpu.x.overflowing_sub(1).0;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xCB NOP 1 1 */ 
             NOP11!(),
@@ -1954,7 +1954,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xCD CMP abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1962,7 +1962,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xCE DEC abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -1972,7 +1972,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xCF BBS4 */ 
             BBS!(4),
@@ -1983,7 +1983,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0; if !(_cpu.flags&M6502Flags::Z).is_empty() {_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xD1 CMP (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -1993,7 +1993,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xD2 CMP (zp), 2, 5, A - M */ 
             IR_STEPS!(_cpu,_pins,
@@ -2002,7 +2002,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /* 0xD3 NOP 1 1 */ 
             NOP11!(),
@@ -2016,7 +2016,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xD6 DEC zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -2026,7 +2026,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xD7 SMB5 */ 
             SMB!(5),
@@ -2035,7 +2035,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags&=!M6502Flags::D;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xD9 CMP abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -2044,14 +2044,14 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xDA PHX, 1, 3, X↑ */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _pins.sad(0x0100|(_cpu.s as u16),_cpu.x);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xDB NOP 1 1 */ 
             NOP11!(),
@@ -2066,7 +2066,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xDE DEC abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -2077,7 +2077,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!() ),
+                unreachable!() ),
 
             /*0xDF BBS5 */ 
             BBS!(5),
@@ -2086,7 +2086,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xE1 SBC (zp,X) */ 
             IR_STEPS!(_cpu,_pins,
@@ -2096,7 +2096,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xE2 NOP 2 2 */ 
             NOP22!(),
@@ -2109,14 +2109,14 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xE5 SBC zp */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _pins.sa(_pins.gd() as u16);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xE6 INC zp */ 
             IR_STEPS!(_cpu,_pins,
@@ -2125,7 +2125,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xE7 SMB6 */ 
             SMB!(6),
@@ -2134,13 +2134,13 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.x = _cpu.x.overflowing_add(1).0;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xE9 SBC # */ 
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xEA NOP */ 
             NOP12!(),
@@ -2154,7 +2154,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xED SBC abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -2162,7 +2162,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
                 { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xEE INC abs */ 
             IR_STEPS!(_cpu,_pins,
@@ -2172,7 +2172,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xEF BBS6 */ 
             BBS!(6),
@@ -2183,7 +2183,7 @@ impl M6502Stepper {
                 { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if (_cpu.flags&M6502Flags::Z).is_empty() {_pins.fetch(_cpu.pc);};} ,
                 { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
                 { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xF1 SBC (zp),Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -2193,7 +2193,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xF2 SBC (zp), 2, 5-6, A - M - ~C → A */
             IR_STEPS!(_cpu,_pins,
@@ -2202,7 +2202,7 @@ impl M6502Stepper {
                 { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ), 
+                unreachable!(), unreachable!(), unreachable!() ), 
             
             /* 0xF3 NOP 1 1 */ 
             NOP11!(),
@@ -2216,7 +2216,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
                 { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xF6 INC zp,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -2226,7 +2226,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!(), panic!() ),
+                unreachable!(), unreachable!() ),
 
             /*0xF7 SMB0 */ 
             SMB!(7),
@@ -2235,7 +2235,7 @@ impl M6502Stepper {
             IR_STEPS!(_cpu,_pins,
                 { _pins.sa(_cpu.pc);} ,
                 { _cpu.flags|=M6502Flags::D;_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xF9 SBC abs,Y */ 
             IR_STEPS!(_cpu,_pins,
@@ -2244,7 +2244,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xFA PLX, 1, 4, X↑ */ 
             IR_STEPS!(_cpu,_pins,
@@ -2252,7 +2252,7 @@ impl M6502Stepper {
                 { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
                 { _pins.sa(0x0100|(_cpu.s as u16));} ,
                 { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xFB NOP 1 1 */ 
             NOP11!(),
@@ -2267,7 +2267,7 @@ impl M6502Stepper {
                 { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
                 { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
                 { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                panic!(), panic!(), panic!() ),
+                unreachable!(), unreachable!(), unreachable!() ),
 
             /*0xFE INC abs,X */ 
             IR_STEPS!(_cpu,_pins,
@@ -2278,7 +2278,7 @@ impl M6502Stepper {
                 { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
                 { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
                 { _pins.fetch(_cpu.pc);} ,
-                panic!() ),
+                unreachable!() ),
 
             /*0xFF BBS7 */ 
             BBS!(7),
