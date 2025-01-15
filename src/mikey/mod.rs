@@ -609,6 +609,10 @@ impl Mikey {
         self.uart.set_cable(cable);
     }
     
+    pub(crate) fn uart_mut(&mut self) -> &mut Uart {
+        &mut self.uart
+    }
+
     pub(crate) fn comlynx_cable(&self) -> &ComlynxCable {
         self.uart.cable()
     }

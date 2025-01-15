@@ -13,11 +13,13 @@ bitflags = { version = "2.6", features = ["serde"] }
 md5 = "0.7.0"
 lazy_static = "1.5.0"
 shared_memory = { version = "0.12", optional = true }
+kanal = { git = "https://github.com/fereidani/kanal.git", rev = "125fb7876797f20c632b25660c2f41c2908f9007", optional = true }
 hashbrown = "0.15"
 parking_lot = "0.12"
 
 [features]
 comlynx_shared_memory = ["dep:shared_memory"]
+comlynx_external = ["dep:kanal"]
 
 [profile.release]
 codegen-units = 1

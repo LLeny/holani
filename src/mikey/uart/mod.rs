@@ -32,6 +32,12 @@ pub struct Uart {
     transmit_holding_register: Option<u8>,
     redeye_pin: ComlynxCable,
     generator_delay: u8,
+    #[cfg(feature = "comlynx_external")]
+    #[serde(skip)]
+    ext_tx: Option<kanal::Sender<u8>>,
+    #[cfg(feature = "comlynx_external")]
+    #[serde(skip)]
+    ext_rx: Option<kanal::Receiver<u8>>,
 }
 
 impl Uart {
@@ -44,8 +50,18 @@ impl Uart {
             break_count: 0,
             transmit_register: vec![],
             transmit_holding_register: None,
-            redeye_pin: ComlynxCable::default(),
+            redeye_pin: ComlynxCable::default(),      
+            #[cfg(feature = "comlynx_external")]            
+            ext_tx: None,
+            #[cfg(feature = "comlynx_external")]
+            ext_rx: None, 
         }
+    }
+  
+    #[cfg(feature = "comlynx_external")]
+    pub fn set_external_comlynx(&mut self, ext_tx: kanal::Sender<u8>, ext_rx: kanal::Receiver<u8>) {
+        self.ext_tx = Some(ext_tx);
+        self.ext_rx = Some(ext_rx);
     }
 
     pub fn reset(&mut self) {
@@ -69,6 +85,20 @@ impl Uart {
                 return false;
             }
         }
+
+        #[cfg(feature = "comlynx_external")]
+        if !regs.serctl_r_is_flag_set(SerCtlR::rx_rdy) && 
+            regs.serctl_r_is_flag_set(SerCtlR::tx_rdy) && 
+            regs.serctl_r_is_flag_set(SerCtlR::tx_empty) {
+            if let Ok(Some(rx_data)) = self.ext_rx.as_ref().unwrap().try_recv() {
+                self.receive_register = Some(rx_data);
+                regs.serctl_r_enable_flag(SerCtlR::rx_rdy);     
+                regs.serctl_r_disable_flag(SerCtlR::par_err);
+                regs.serctl_r_disable_flag(SerCtlR::overrun);
+                regs.serctl_r_disable_flag(SerCtlR::frame_err);
+            }
+        }
+
         /* "
         Both the transmit and receive interrupts are 'level' sensitive, rather than 'edge' sensitive. 
         This means that an interrupt will be continuously generated as long as it is enabled and its UART buffer is ready.
@@ -105,6 +135,9 @@ impl Uart {
     }
 
     fn load_transmit_data(&mut self, mut data: u8, regs: &mut MikeyRegisters) {
+        #[cfg(feature = "comlynx_external")]
+        let _ = self.ext_tx.as_ref().unwrap().send(data);  
+
         self.transmit_register.clear();
         // stop bit 
         self.transmit_register.push(RedeyeStatus::High);
@@ -128,7 +161,7 @@ impl Uart {
             data >>= 1;
         }
         // start bit 
-        self.transmit_register.push(RedeyeStatus::Low);
+        self.transmit_register.push(RedeyeStatus::Low);        
     }
 
     fn rx(&mut self, regs: &mut MikeyRegisters) {
@@ -190,7 +223,7 @@ impl Uart {
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
                 } else {
                     self.receive_register = Some(self.receive_register_buffer);
-                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                                        
+                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);                               
                 }
                 self.receive_register_len = 0;
             }

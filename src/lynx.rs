@@ -29,10 +29,21 @@ pub struct Lynx {
     bus: Bus,
     last_ir_pc: u16,
     switches_cache: Switches,
+    #[cfg(feature = "comlynx_external")]
+    #[serde(skip)]
+    comlynx_ext_tx: Option<kanal::Receiver<u8>>,
+    #[cfg(feature = "comlynx_external")]
+    #[serde(skip)]
+    comlynx_ext_rx: Option<kanal::Sender<u8>>,
 }
 
 impl Lynx {
     pub fn new() -> Self {
+        #[cfg(feature = "comlynx_external")]
+        let (comlynx_ext_tx_tx, comlynx_ext_tx_rx) = kanal::unbounded::<u8>();
+        #[cfg(feature = "comlynx_external")]
+        let (comlynx_ext_rx_tx, comlynx_ext_rx_rx) = kanal::unbounded::<u8>();
+
         let mut slf = Self {
             vectors: Vectors::default(),
             ram: Ram::default(),
@@ -44,7 +55,15 @@ impl Lynx {
             bus: Bus::default(),
             last_ir_pc: 0,
             switches_cache: Switches::empty(),
+            #[cfg(feature = "comlynx_external")]
+            comlynx_ext_tx: Some(comlynx_ext_tx_rx),
+            #[cfg(feature = "comlynx_external")]
+            comlynx_ext_rx: Some(comlynx_ext_rx_tx),
         };
+
+        #[cfg(feature = "comlynx_external")]
+        slf.mikey_mut().uart_mut().set_external_comlynx(comlynx_ext_tx_tx, comlynx_ext_rx_rx);
+
         slf.initialize();        
         slf
     }
@@ -324,6 +343,16 @@ impl Lynx {
 
     pub fn cart_mut(&mut self) -> &mut Cartridge {
         &mut self.cart
+    }
+
+    #[cfg(feature = "comlynx_external")]
+    pub fn comlynx_ext_rx(&mut self, data: u8) {
+        let _ = self.comlynx_ext_rx.as_ref().unwrap().send(data);
+    }
+
+    #[cfg(feature = "comlynx_external")]
+    pub fn comlynx_ext_tx(&mut self) -> Option<u8> {
+        self.comlynx_ext_tx.as_ref().unwrap().try_recv().unwrap_or_default()
     }
 }
 
