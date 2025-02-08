@@ -458,7 +458,7 @@ impl Mikey {
                 }
                 if iodir & IODAT_NOEXP != 0 {
                     v |= iodat & IODAT_NOEXP;
-                } else if self.comlynx_cable_present {
+                } else if !self.comlynx_cable_present {
                     v |= IODAT_NOEXP;
                 }
                 if iodir & IODAT_REST != 0 {
