@@ -568,9 +568,6 @@ impl Mikey {
         let b = if self.registers.data(IODAT) & IODAT_AUDIN == 0 {0} else {1};
         self.registers.set_audin(b);
         cart.write_address_to_pins(self.registers.cart_shift(), self.registers.cart_position(), self.registers.audin());
-
-        bus.set_status(BusStatus::PokeDone); 
-        self.registers.reset_ir(); 
     }
 
     pub fn cpu_pins(&self) -> CPUPins {
