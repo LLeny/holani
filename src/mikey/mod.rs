@@ -56,8 +56,6 @@ pub enum MikeyBusOwner {
 #[derive(Serialize, Deserialize)]
 pub struct Mikey {
     cpu: M6502,
-    #[serde(skip)]
-    cpu_stepper: M6502Stepper,
     cpu_pins: CPUPins,
     timers: Timers,
     uart: Uart,
@@ -76,7 +74,6 @@ impl Mikey {
     pub fn new() -> Self {
         Self {
             cpu: M6502::new(),
-            cpu_stepper: M6502Stepper::default(),
             cpu_pins: CPUPins::default(),
             uart: Uart::new(),
             ticks: 0,
@@ -94,7 +91,6 @@ impl Mikey {
 
     pub fn reset(&mut self) {
         self.cpu = M6502::new();
-        self.cpu_stepper = M6502Stepper::default();
         self.cpu_pins = CPUPins::default();
         self.ticks = 0;
         self.timers = Timers::new();
@@ -115,7 +111,7 @@ impl Mikey {
     }
 
     pub fn cpu_tick(&mut self, bus: &mut Bus) {
-        self.cpu_pins = self.cpu_stepper.tick(&mut self.cpu, self.cpu_pins);
+        self.cpu_pins = self.cpu.tick(self.cpu_pins);
         let addr = self.cpu_pins.ga();
 
         if self.cpu_pins.is_set(M6502_RW) {

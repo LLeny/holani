@@ -1,21 +1,30 @@
 extern crate alloc;
-use alloc::{boxed::Box, fmt};
+use alloc::fmt;
 use bitflags::bitflags;
 use super::*;
 
+type StepFn = fn(&mut M6502, &mut CPUPins);
+type InstructionSteps = [StepFn; 8];
+
 macro_rules! IR_STEPS {
-    ($c:ident,$p:ident,$($e:expr),* ) => {
-        [
-            $(Box::new(|$c: &mut M6502, $p: &mut CPUPins| { $e })),*
-        ]
+    ($c:ident, $p:ident, $($e:expr),*) => {
+        {
+            let mut _steps: InstructionSteps = [|$c: &mut M6502, $p: &mut CPUPins| { unreachable!() }; 8];
+            let mut _i = 0;
+            $(
+                _steps[_i] = |$c: &mut M6502, $p: &mut CPUPins| $e;
+                _i = _i + 1;
+            )*
+            _steps
+        }
     };
 }
 
 macro_rules! NOP11 {
     () => {
         IR_STEPS!(_cpu,_pins,
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
+            { _pins.fetch(_cpu.pc);}
+            )
     };
 }
 
@@ -23,8 +32,8 @@ macro_rules! NOP12 {
     () => {
         IR_STEPS!(_cpu,_pins,
             { _pins.sa(_cpu.pc); },
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
+            { _pins.fetch(_cpu.pc);}
+        )
     };
 }
 
@@ -32,8 +41,7 @@ macro_rules! NOP22 {
     () => {
         IR_STEPS!(_cpu,_pins,
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
+            { _pins.fetch(_cpu.pc);})
     };
 }
 
@@ -42,8 +50,7 @@ macro_rules! NOP23 {
         IR_STEPS!(_cpu,_pins,
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.sa(_cpu.pc); },
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!())
+            { _pins.fetch(_cpu.pc);})
     };
 }
 
@@ -53,8 +60,7 @@ macro_rules! NOP24 {
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.sa(_cpu.pc); },
             { _pins.sa(_cpu.pc); },
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!(), unreachable!())
+            { _pins.fetch(_cpu.pc);})
     };
 }
 
@@ -64,8 +70,7 @@ macro_rules! NOP34 {
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; },
             { _pins.sa(_cpu.pc); },
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!(), unreachable!())
+            { _pins.fetch(_cpu.pc);})
     };
 }
 
@@ -90,8 +95,7 @@ macro_rules! RMB {
             { _pins.sa(_pins.gd() as u16);},
             { _cpu.ad=_pins.gd() as u16 & !(u16::pow(2, $b));},
             { _pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);},
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!() )                
+            { _pins.fetch(_cpu.pc);})                
     };
 }
 
@@ -103,8 +107,7 @@ macro_rules! SMB {
             { _pins.sa(_pins.gd() as u16);},
             { _cpu.ad=_pins.gd() as u16 | u16::pow(2, $b);},
             { _pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);},
-            { _pins.fetch(_cpu.pc);} ,
-            unreachable!(), unreachable!(), unreachable!() )
+            { _pins.fetch(_cpu.pc);})
     };
 }
 
@@ -117,8 +120,7 @@ macro_rules! BBR {
             { _pins.sa(_cpu.pc); if _cpu.ad != 0 { _cpu.ad=_cpu.pc.overflowing_add(1).0; _cpu.ir_step += 2 } },
             { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add((_pins.gd() as i8) as u16).0 as u16; },
             { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF)); if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) { _cpu.pc=_cpu.ad; _cpu.irq_pip>>=1; _cpu.nmi_pip>>=1; _pins.fetch(_cpu.pc); }; },
-            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
-            unreachable!())
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);})
     };
 }
 
@@ -131,8 +133,7 @@ macro_rules! BBS {
             { _pins.sa(_cpu.pc); if _cpu.ad == 0 {  _cpu.ad=_cpu.pc.overflowing_add(1).0; _cpu.ir_step += 2 } },
             { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add(1).0.overflowing_add((_pins.gd() as i8) as u16).0 as u16; },
             { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF)); if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) { _cpu.pc=_cpu.ad; _cpu.irq_pip>>=1; _cpu.nmi_pip>>=1; _pins.fetch(_cpu.pc); }; },
-            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
-            unreachable!())
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);})
     };
 }
 
@@ -179,16 +180,18 @@ impl CPUPins {
         self.data & v != 0
     }
 
+    #[inline(always)]
     pub fn ga(&self) -> u16 {
-        (self.data & 0xffff) as u16
+        self.data as u16 & 0xffff 
     }
     
     pub fn sa(&mut self, addr: u16) {
         self.data = (self.data & !0xffff) | addr as u32;
     }
     
+    #[inline(always)]
     pub fn gd(&self) -> u8 {
-        ((self.data & 0xff0000) >> 16) as u8
+        (self.data >> 16) as u8
     }
     
     pub fn sd(&mut self, data: u8) {
@@ -436,18 +439,16 @@ impl M6502 {
         }
     }
 
+    #[inline(always)]
     pub fn nz(&mut self, value: u8) {
-        self.flags &= !(M6502Flags::N | M6502Flags::Z);
-        self.flags |= if value != 0 {
-            if value & (M6502Flags::N).bits() != 0 {
-                M6502Flags::N
-            }
-            else {
-                M6502Flags::empty()
-            }
-        } else {
+        self.flags = (self.flags & !(M6502Flags::N | M6502Flags::Z)) | 
+        if value == 0 {
             M6502Flags::Z
-        }
+        } else if value & 0x80 != 0 {
+            M6502Flags::N 
+        } else {
+            M6502Flags::empty()
+        };
     }
 
     pub fn set_a(&mut self, a: u8) {
@@ -509,45 +510,31 @@ impl M6502 {
     pub fn ir_step(&self) -> u8 {
         self.ir_step
     }
-}
 
-impl Default for M6502 {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-type InstructionSteps = [Box<dyn Fn(&mut M6502, &mut CPUPins)>; 8];
-
-pub struct M6502Stepper {
-    instruction_steps: [InstructionSteps; 0x100],
-}
-
-impl M6502Stepper {
-    pub fn tick(&self, cpu: &mut M6502, pins: CPUPins) -> CPUPins {
+    pub fn tick(&mut self, pins: CPUPins) -> CPUPins {
         let mut ps = pins;
         if ps.is_set(M6502_SYNC | M6502_IRQ | M6502_NMI | M6502_RDY | M6502_RES) {
-            if 0 != (ps.pins() & (ps.pins() ^ cpu.pins.pins()) & M6502_NMI) {
-                cpu.nmi_pip |= 0x100;
+            if 0 != (ps.pins() & (ps.pins() ^ self.pins.pins()) & M6502_NMI) {
+                self.nmi_pip |= 0x100;
             }
             // IRQ test is level triggered
-            if ps.is_set(M6502_IRQ) && !cpu.flags.contains(M6502Flags::I) {
-                cpu.irq_pip |= 0x100;
+            if ps.is_set(M6502_IRQ) && !self.flags.contains(M6502Flags::I) {
+                self.irq_pip |= 0x100;
             }
 
             // RDY pin is only checked during read cycles
             if ps.is_set(M6502_RDY) && ps.is_set(M6502_RW) {
-                cpu.pins = ps;
-                cpu.irq_pip <<= 1;
+                self.pins = ps;
+                self.irq_pip <<= 1;
                 return ps;
             }
 
             if ps.is_set(M6502_SYNC) {
-                cpu.ir = ps.gd();
-                cpu.ir_step = 0;
+                self.ir = ps.gd();
+                self.ir_step = 0;
                 ps.pin_off(M6502_SYNC);
-                trace!("Load instruction {:?}", cpu);
-                cpu.last_ir_pc = ps.ga();
+                trace!("Load instruction {:?}", self);
+                self.last_ir_pc = ps.ga();
 
                 // check IRQ, NMI and RES state
                 //  - IRQ is level-triggered and must be active in the full cycle
@@ -557,1739 +544,50 @@ impl M6502Stepper {
                 //  - RES behaves slightly different than on a real 6502, we go
                 //    into RES state as soon as the pin goes active, from there
                 //    on, behaviour is 'standard'
-                if 0 != (cpu.irq_pip & 0x400) {
-                    cpu.break_flags |= M6502BreakFlags::IRQ;
+                if 0 != (self.irq_pip & 0x400) {
+                    self.break_flags |= M6502BreakFlags::IRQ;
                 }
-                if 0 != (cpu.nmi_pip & 0xFC00) {
-                    cpu.break_flags |= M6502BreakFlags::NMI;
+                if 0 != (self.nmi_pip & 0xFC00) {
+                    self.break_flags |= M6502BreakFlags::NMI;
                 }
                 if pins.is_set(M6502_RES) {
-                    cpu.break_flags |= M6502BreakFlags::RESET;
+                    self.break_flags |= M6502BreakFlags::RESET;
                 }
-                cpu.irq_pip &= 0x3FF;
-                cpu.nmi_pip &= 0x3FF;
+                self.irq_pip &= 0x3FF;
+                self.nmi_pip &= 0x3FF;
 
                 // if interrupt or reset was requested, force a BRK instruction
-                if !cpu.break_flags.is_empty() {
-                    cpu.ir = 0;
-                    cpu.flags &= !M6502Flags::B;
-                    trace!("IRQ, flags:{:08b}", cpu.flags);
+                if !self.break_flags.is_empty() {
+                    self.ir = 0;
+                    self.flags &= !M6502Flags::B;
+                    trace!("IRQ, flags:{:08b}", self.flags);
                     ps.pin_off(M6502_RES);
                 }
                 else {
-                    cpu.pc = cpu.pc.wrapping_add(1);
+                    self.pc = self.pc.wrapping_add(1);
                 }
             }
         }
 
         ps.pin_on(M6502_RW);
 
-        (self.instruction_steps[cpu.ir as usize][cpu.ir_step as usize])(cpu, &mut ps);
-        trace!("IR Step {:?}, pins:{:?}", cpu, ps);
-        cpu.ir_step += 1;
+        // Call function pointer directly
+        (INSTRUCTIONS[self.ir as usize][self.ir_step as usize])(self, &mut ps);
 
-        cpu.pins = ps;
-        cpu.irq_pip <<= 1;
-        cpu.nmi_pip <<= 1;
-        cpu.pins
+        trace!("IR Step {:?}, pins:{:?}", self, ps);
+        self.ir_step += 1;
+
+        self.pins = ps;
+        self.irq_pip <<= 1;
+        self.nmi_pip <<= 1;
+        self.pins
     }
 
-    pub fn new() -> M6502Stepper {
-        M6502Stepper { instruction_steps:
-        [
-            /* 0x00 BRK */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);},
-                { if !_cpu.break_flags.contains(M6502BreakFlags::IRQ) && !_cpu.break_flags.contains(M6502BreakFlags::NMI) {_cpu.pc=_cpu.pc.overflowing_add(1).0;};_pins.sad(0x0100|(_cpu.s as u16),(_cpu.pc>>8) as u8); _cpu.s=_cpu.s.overflowing_sub(1).0;if !_cpu.break_flags.contains(M6502BreakFlags::RESET) {_pins.pin_off(M6502_RW);}},
-                { _pins.sad(0x0100|(_cpu.s as u16), _cpu.pc as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;if !_cpu.break_flags.contains(M6502BreakFlags::RESET) {_pins.pin_off(M6502_RW);}},
-                { _pins.sad(0x0100|(_cpu.s as u16), (_cpu.flags|M6502Flags::X|if _cpu.break_flags.is_empty() {M6502Flags::B} else {M6502Flags::empty()}).bits()); _cpu.s=_cpu.s.overflowing_sub(1).0;if _cpu.break_flags.contains(M6502BreakFlags::RESET) {_cpu.ad=0xFFFC;}else{_pins.pin_off(M6502_RW);if _cpu.break_flags.contains(M6502BreakFlags::NMI) {_cpu.ad=0xFFFA;}else{_cpu.ad=0xFFFE;}}},
-                { _pins.sa(_cpu.ad); _cpu.ad +=1;_cpu.flags|=M6502Flags::I|M6502Flags::B;_cpu.break_flags=M6502BreakFlags::empty(); },
-                { _pins.sa(_cpu.ad);_cpu.ad=_pins.gd() as u16; },
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);},
-                unreachable!() ),
-            
-            /* 0x01 ORA (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-            
-            /* 0x02 NOP 2 2 */
-            NOP22!(),
-
-            /* 0x03 NOP 1 1 */ 
-            NOP11!(),
-
-            /* 0x04 TSB zp, 2, 5, A ∨ M → M */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad|=_cpu.a as u16;_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x05 ORA zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x06 ASL zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x07 RMB0 */ 
-            RMB!(0),
-
-            /*0x08 PHP */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sad(0x0100|(_cpu.s as u16),(_cpu.flags|M6502Flags::X|M6502Flags::B).bits());_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x09 ORA # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x0A ASL A */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a=_cpu.asl(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x0B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x0C TSB abs, 3, 6, A ∨ M → M */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad|=_cpu.a as u16;_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x0D ORA abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x0E ASL abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x0F BBR0 */ 
-            BBR!(0),
-
-            /*0x10 BPL # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if!(_cpu.flags&M6502Flags::N).is_empty(){_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00){_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x11 ORA (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x12 ORA (zp), 2, 5, A ∨ M → A */
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /* 0x13 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x14 TRB zp, 2, 5, ~A ∧ M → M */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad&=!(_cpu.a as u16);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x15 ORA zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x16 ASL zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x17 RMB1 */ 
-            RMB!(1),
-
-            /*0x18 CLC */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags&=!M6502Flags::C;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x19 ORA abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x1A INC A, 1, 2, A + 1 → A */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a = _cpu.a.overflowing_add(1).0; _cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x1B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x1C TRB abs, 6, 3, ~A ∧ M → M */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad&=!(_cpu.a as u16);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x1D ORA abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x1E ASL abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!() ),
-
-            /*0x1F BBR1 */ 
-            BBR!(1),
-
-            /*0x20 JSR */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sad(0x0100|(_cpu.s as u16),(_cpu.pc>>8) as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
-                { _pins.sad(0x0100|(_cpu.s as u16),_cpu.pc as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x21 AND (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x22 Nop 2 2 */
-            NOP22!(),
-
-            /* 0x23 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x24 BIT zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x25 AND zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x26 ROL zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x27 RMB2 */ 
-            RMB!(2),
-
-            /*0x28 PLP */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));} ,
-                { _cpu.flags=M6502Flags::from_bits(_pins.gd()).unwrap()&!(M6502Flags::B|M6502Flags::X);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x29 AND # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x2A ROLA */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a=_cpu.rol(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x2B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x2C BIT abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x2D AND abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x2E ROL abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x2F BBR2 */ 
-            BBR!(2),
-
-            /*0x30 BMI # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if(_cpu.flags&M6502Flags::N).is_empty(){_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x31 AND (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x32 AND (zp), 2, 5, A ∧ M → A */
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /* 0x33 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x34 BIT zp,X, 2, 3, A ∧ M, M7 → N, M6 → V */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x35 AND zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x36 ROL zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x37 RMB3 */ 
-            RMB!(3),
-
-            /*0x38 SEC */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags|=M6502Flags::C;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x39 AND abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x3A DEC A, 2, 1, A - 1 → A */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a = _cpu.a.overflowing_sub(1).0; _cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x3B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x3C BIT abs,X, 3, 4, A ∧ M, M7 → N, M6 → V */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x3D AND abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x3E ROL abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!() ),
-
-            /*0x3F BBR3 */ 
-            BBR!(3),
-
-            /*0x40 RTI */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;_cpu.flags=M6502Flags::from_bits(_pins.gd()).unwrap()&!(M6502Flags::B|M6502Flags::X);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x41 EOR (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x42 NOP 2 2 */
-            NOP22!(),
-
-            /* 0x43 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x44 NOP 2 3 */ 
-            NOP23!(),
-
-            /*0x45 EOR zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x46 LSR zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x47 RMB4 */ 
-            RMB!(4),
-
-            /*0x48 PHA */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sad(0x0100|(_cpu.s as u16),_cpu.a);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x49 EOR # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x4A LSRA */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a=_cpu.lsr(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x4B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x4C JMP */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; _cpu.ad=_pins.gd() as u16; },
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad; _pins.fetch(_cpu.pc); } ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x4D EOR abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x4E LSR abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x4F BBR4 */ 
-            BBR!(4),
-
-            /*0x50 BVC # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if!(_cpu.flags&M6502Flags::V).is_empty(){_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x51 EOR (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x52 EOR (zp), 2, 5, A ⊻ M → A */
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-            
-            /* 0x53 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x54 NOP 2 3 */ 
-            NOP23!(),
-
-            /*0x55 EOR zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x56 LSR zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x57 RMB5 */ 
-            RMB!(5),
-
-            /*0x58 CLI */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags&=!M6502Flags::I;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x59 EOR abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x5A PHY, 1, 3, Y↑ */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sad(0x0100|(_cpu.s as u16),_cpu.y);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x5B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x5C NOP 3 8 */ 
-            NOP38!(),
-
-            /*0x5D EOR abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x5E LSR abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!() ),
-
-            /*0x5F BBR5 */ 
-            BBR!(5),
-
-            /*0x60 RTS */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x61 ADC (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x62 Nop 2 2 */
-            NOP22!(),
-            
-            /* 0x63 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x64 STZ zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x65 ADC zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x66 ROR zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x67 RMB6 */ 
-            RMB!(6),
-
-            /*0x68 PLA */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x69 ADC # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x6A ROR A */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a=_cpu.ror(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x6B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x6C JMPI */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad & 0xFF00)|((_cpu.ad+1)&0x00FF));_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x6D ADC abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x6E ROR abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x6F BBR6 */ 
-            BBR!(6),
-
-            /*0x70 BVS # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if(_cpu.flags&M6502Flags::V).is_empty(){_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x71 ADC (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x72 ADC (zp), 2, 5-6, A + M + C → A, C */
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ), 
-            
-            /* 0x73 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x74 STZ zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x75 ADC zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x76 ROR zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x77 RMB7 */ 
-            RMB!(7),
-
-            /*0x78 SEI */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags|=M6502Flags::I;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x79 ADC abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x7A PLY, 1, 4, Y↑ */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));} ,
-                { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x7B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x7C JMP (abs, X), 3, 6, [PC + 1] → PCL, [PC + 2] → PCH */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8; } ,
-                { _cpu.ad=_cpu.ad.overflowing_add(_cpu.x as u16).0; _pins.sa(_cpu.ad);} ,
-                { _pins.sa(_cpu.ad+1);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad; _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x7D ADC abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x7E ROR abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!() ),
-
-            /*0x7F BBR7 */ 
-            BBR!(7),
-
-            /*0x80 BRA  */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);},
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x81 STA (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x82 Nop 2 2 */ 
-            NOP22!(),
-
-            /*0x83 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x84 STY zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x85 STA zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x86 STX zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x87 SMB0 */ 
-            SMB!(0),
-
-            /*0x88 DEY */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.y = _cpu.y.overflowing_sub(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x89 BIT # , 2, 3, A ∧ M, M7 → N, M6 → V */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.bit(_cpu.ad as u8);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x8A TXA */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a=_cpu.x;_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x8B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x8C STY abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x8D STA abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x8E STX abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x8F BBS0 */ 
-            BBS!(0),
-
-            /*0x90 BCC # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if !(_cpu.flags&M6502Flags::C).is_empty() {_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x91 STA (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0x92 STA (zp), 2, 5, A → M */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-            
-            /* 0x93 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x94 STY zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x95 STA zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x96 STX zp,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0x00FF);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x97 SMB1 */ 
-            SMB!(1),
-
-            /*0x98 TYA */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.a=_cpu.y;_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x99 STA abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x9A TXS */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.s=_cpu.x;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x9B NOP 1 1 */ 
-            NOP11!(),
-
-            /*0x9C STZ abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x9D STA abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x9E STZ abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0x9F BBS1 */ 
-            BBS!(1),
-
-            /*0xA0 LDY # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xA1 LDA (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xA2 LDX # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xA3 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xA4 LDY zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xA5 LDA zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xA6 LDX zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xA7 SMB2 */ 
-            SMB!(2),
-
-            /*0xA8 TAY */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.y=_cpu.a;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xA9 LDA # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xAA TAX */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.x=_cpu.a;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xAB NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xAC LDY abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xAD LDA abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xAE LDX abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xAF BBS2 */ 
-            BBS!(2),
-
-            /*0xB0 BCS # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if (_cpu.flags&M6502Flags::C).is_empty() {_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xB1 LDA (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xB2 LDA (zp), 2, 5, M → A */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-            
-            /* 0xB3 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xB4 LDY zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xB5 LDA zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xB6 LDX zp,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0x00FF);} ,
-                { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xB7 SMB3 */ 
-            SMB!(3),
-
-            /*0xB8 CLV */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags&=!M6502Flags::V;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xB9 LDA abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|(_cpu.ad.overflowing_add(_cpu.y as u16).0 & 0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xBA TSX */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.x=_cpu.s;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xBB NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xBC LDY abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xBD LDA abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xBE LDX abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xBF BBS3 */ 
-            BBS!(3),
-
-            /*0xC0 CPY # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xC1 CMP (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xC2 NOP 2 2 */ 
-            NOP22!(),
-
-            /*0xC3 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xC4 CPY zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xC5 CMP zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xC6 DEC zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xC7 SMB4 */ 
-            SMB!(4),
-
-            /*0xC8 INY */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.y = _cpu.y.overflowing_add(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xC9 CMP # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xCA DEX */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.x=_cpu.x.overflowing_sub(1).0;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xCB NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xCC CPY abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xCD CMP abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xCE DEC abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xCF BBS4 */ 
-            BBS!(4),
-
-            /*0xD0 BNE # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0; if !(_cpu.flags&M6502Flags::Z).is_empty() {_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xD1 CMP (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xD2 CMP (zp), 2, 5, A - M */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /* 0xD3 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xD4 NOP 2 4 */ 
-            NOP24!(),
-
-            /*0xD5 CMP zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xD6 DEC zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xD7 SMB5 */ 
-            SMB!(5),
-
-            /*0xD8 CLD */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags&=!M6502Flags::D;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xD9 CMP abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xDA PHX, 1, 3, X↑ */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sad(0x0100|(_cpu.s as u16),_cpu.x);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xDB NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xDC NOP 3 4 */ 
-            NOP34!(),
-
-            /*0xDD CMP abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xDE DEC abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!() ),
-
-            /*0xDF BBS5 */ 
-            BBS!(5),
-
-            /*0xE0 CPX # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xE1 SBC (zp,X) */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xE2 NOP 2 2 */ 
-            NOP22!(),
-
-            /*0xE3 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xE4 CPX zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xE5 SBC zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xE6 INC zp */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_pins.gd() as u16);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xE7 SMB6 */ 
-            SMB!(6),
-
-            /*0xE8 INX */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.x = _cpu.x.overflowing_add(1).0;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xE9 SBC # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xEA NOP */ 
-            NOP12!(),
-
-            /*0xEB NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xEC CPX abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xED SBC abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xEE INC abs */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xEF BBS6 */ 
-            BBS!(6),
-
-            /*0xF0 BEQ # */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if (_cpu.flags&M6502Flags::Z).is_empty() {_pins.fetch(_cpu.pc);};} ,
-                { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
-                { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xF1 SBC (zp),Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xF2 SBC (zp), 2, 5-6, A - M - ~C → A */
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ), 
-            
-            /* 0xF3 NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xF4 NOP 2 4 */ 
-            NOP24!(),
-
-            /*0xF5 SBC zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xF6 INC zp,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
-                { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!() ),
-
-            /*0xF7 SMB0 */ 
-            SMB!(7),
-
-            /*0xF8 SED */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _cpu.flags|=M6502Flags::D;_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xF9 SBC abs,Y */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xFA PLX, 1, 4, X↑ */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc);} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
-                { _pins.sa(0x0100|(_cpu.s as u16));} ,
-                { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xFB NOP 1 1 */ 
-            NOP11!(),
-
-            /*0xFC NOP 3 4 */ 
-            NOP34!(),
-
-            /*0xFD SBC abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);} ,
-                unreachable!(), unreachable!(), unreachable!() ),
-
-            /*0xFE INC abs,X */ 
-            IR_STEPS!(_cpu,_pins,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
-                { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
-                { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
-                { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
-                { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
-                { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
-                { _pins.fetch(_cpu.pc);} ,
-                unreachable!() ),
-
-            /*0xFF BBS7 */ 
-            BBS!(7),
-        ],        
-        }
-    }
 }
 
-impl Default for M6502Stepper {
+impl Default for M6502 {
     fn default() -> Self {
-        M6502Stepper::new()
+        Self::new()
     }
 }
 
@@ -2303,6 +601,1519 @@ impl fmt::Debug for M6502 {
     }
 }
 
+const INSTRUCTIONS: [InstructionSteps; 0x100] =
+    [
+        /* 0x00 BRK */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);},
+            { if !_cpu.break_flags.contains(M6502BreakFlags::IRQ) && !_cpu.break_flags.contains(M6502BreakFlags::NMI) {_cpu.pc=_cpu.pc.overflowing_add(1).0;};_pins.sad(0x0100|(_cpu.s as u16),(_cpu.pc>>8) as u8); _cpu.s=_cpu.s.overflowing_sub(1).0;if !_cpu.break_flags.contains(M6502BreakFlags::RESET) {_pins.pin_off(M6502_RW);}},
+            { _pins.sad(0x0100|(_cpu.s as u16), _cpu.pc as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;if !_cpu.break_flags.contains(M6502BreakFlags::RESET) {_pins.pin_off(M6502_RW);}},
+            { _pins.sad(0x0100|(_cpu.s as u16), (_cpu.flags|M6502Flags::X|if _cpu.break_flags.is_empty() {M6502Flags::B} else {M6502Flags::empty()}).bits()); _cpu.s=_cpu.s.overflowing_sub(1).0;if _cpu.break_flags.contains(M6502BreakFlags::RESET) {_cpu.ad=0xFFFC;}else{_pins.pin_off(M6502_RW);if _cpu.break_flags.contains(M6502BreakFlags::NMI) {_cpu.ad=0xFFFA;}else{_cpu.ad=0xFFFE;}}},
+            { _pins.sa(_cpu.ad); _cpu.ad +=1;_cpu.flags|=M6502Flags::I|M6502Flags::B;_cpu.break_flags=M6502BreakFlags::empty(); },
+            { _pins.sa(_cpu.ad);_cpu.ad=_pins.gd() as u16; },
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);},
+            unreachable!() ),
+        
+        /* 0x01 ORA (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+        
+        /* 0x02 NOP 2 2 */
+        NOP22!(),
+
+        /* 0x03 NOP 1 1 */ 
+        NOP11!(),
+
+        /* 0x04 TSB zp, 2, 5, A ∨ M → M */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad|=_cpu.a as u16;_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x05 ORA zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}  ),
+
+        /*0x06 ASL zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x07 RMB0 */ 
+        RMB!(0),
+
+        /*0x08 PHP */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sad(0x0100|(_cpu.s as u16),(_cpu.flags|M6502Flags::X|M6502Flags::B).bits());_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x09 ORA # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x0A ASL A */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a=_cpu.asl(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x0B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x0C TSB abs, 3, 6, A ∨ M → M */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad|=_cpu.a as u16;_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x0D ORA abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x0E ASL abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x0F BBR0 */ 
+        BBR!(0),
+
+        /*0x10 BPL # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if!(_cpu.flags&M6502Flags::N).is_empty(){_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if(_cpu.ad&0xFF00)==(_cpu.pc&0xFF00){_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ),
+
+        /*0x11 ORA (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x12 ORA (zp), 2, 5, A ∨ M → A */
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /* 0x13 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x14 TRB zp, 2, 5, ~A ∧ M → M */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad&=!(_cpu.a as u16);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x15 ORA zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x16 ASL zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x17 RMB1 */ 
+        RMB!(1),
+
+        /*0x18 CLC */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags&=!M6502Flags::C;_pins.fetch(_cpu.pc);}),
+
+        /*0x19 ORA abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x1A INC A, 1, 2, A + 1 → A */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a = _cpu.a.overflowing_add(1).0; _cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x1B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x1C TRB abs, 6, 3, ~A ∧ M → M */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.z(_cpu.ad as u8 & _cpu.a); _cpu.ad&=!(_cpu.a as u16);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x1D ORA abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.a|=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x1E ASL abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.asl(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x1F BBR1 */ 
+        BBR!(1),
+
+        /*0x20 JSR */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sad(0x0100|(_cpu.s as u16),(_cpu.pc>>8) as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
+            { _pins.sad(0x0100|(_cpu.s as u16),_cpu.pc as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);}),
+
+        /*0x21 AND (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x22 Nop 2 2 */
+        NOP22!(),
+
+        /* 0x23 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x24 BIT zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);}  ),
+
+        /*0x25 AND zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}  ),
+
+        /*0x26 ROL zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x27 RMB2 */ 
+        RMB!(2),
+
+        /*0x28 PLP */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));} ,
+            { _cpu.flags=M6502Flags::from_bits(_pins.gd()).unwrap()&!(M6502Flags::B|M6502Flags::X);_pins.fetch(_cpu.pc);} ),
+
+        /*0x29 AND # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x2A ROLA */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a=_cpu.rol(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x2B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x2C BIT abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ),
+
+        /*0x2D AND abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x2E ROL abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x2F BBR2 */ 
+        BBR!(2),
+
+        /*0x30 BMI # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if(_cpu.flags&M6502Flags::N).is_empty(){_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ),
+
+        /*0x31 AND (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x32 AND (zp), 2, 5, A ∧ M → A */
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /* 0x33 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x34 BIT zp,X, 2, 3, A ∧ M, M7 → N, M6 → V */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);}  ),
+
+        /*0x35 AND zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x36 ROL zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x37 RMB3 */ 
+        RMB!(3),
+
+        /*0x38 SEC */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags|=M6502Flags::C;_pins.fetch(_cpu.pc);}   ),
+
+        /*0x39 AND abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x3A DEC A, 2, 1, A - 1 → A */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a = _cpu.a.overflowing_sub(1).0; _cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x3B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x3C BIT abs,X, 3, 4, A ∧ M, M7 → N, M6 → V */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.bit(_pins.gd());_pins.fetch(_cpu.pc);} ),
+
+        /*0x3D AND abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.a&=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x3E ROL abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.rol(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x3F BBR3 */ 
+        BBR!(3),
+
+        /*0x40 RTI */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;_cpu.flags=M6502Flags::from_bits(_pins.gd()).unwrap()&!(M6502Flags::B|M6502Flags::X);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);}),
+
+        /*0x41 EOR (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x42 NOP 2 2 */
+        NOP22!(),
+
+        /* 0x43 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x44 NOP 2 3 */ 
+        NOP23!(),
+
+        /*0x45 EOR zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}  ),
+
+        /*0x46 LSR zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x47 RMB4 */ 
+        RMB!(4),
+
+        /*0x48 PHA */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sad(0x0100|(_cpu.s as u16),_cpu.a);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x49 EOR # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x4A LSRA */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a=_cpu.lsr(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x4B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x4C JMP */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0; _cpu.ad=_pins.gd() as u16; },
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad; _pins.fetch(_cpu.pc); }  ),
+
+        /*0x4D EOR abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x4E LSR abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x4F BBR4 */ 
+        BBR!(4),
+
+        /*0x50 BVC # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if!(_cpu.flags&M6502Flags::V).is_empty(){_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ),
+
+        /*0x51 EOR (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x52 EOR (zp), 2, 5, A ⊻ M → A */
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+        
+        /* 0x53 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x54 NOP 2 3 */ 
+        NOP23!(),
+
+        /*0x55 EOR zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x56 LSR zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x57 RMB5 */ 
+        RMB!(5),
+
+        /*0x58 CLI */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags&=!M6502Flags::I;_pins.fetch(_cpu.pc);}   ),
+
+        /*0x59 EOR abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x5A PHY, 1, 3, Y↑ */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sad(0x0100|(_cpu.s as u16),_cpu.y);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x5B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x5C NOP 3 8 */ 
+        NOP38!(),
+
+        /*0x5D EOR abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.a^=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0x5E LSR abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.lsr(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x5F BBR5 */ 
+        BBR!(5),
+
+        /*0x60 RTS */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x61 ADC (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0x62 Nop 2 2 */
+        NOP22!(),
+        
+        /* 0x63 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x64 STZ zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x65 ADC zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}  ),
+
+        /*0x66 ROR zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x67 RMB6 */ 
+        RMB!(6),
+
+        /*0x68 PLA */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0x69 ADC # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}   ),
+
+        /*0x6A ROR A */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a=_cpu.ror(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x6B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x6C JMPI */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad & 0xFF00)|((_cpu.ad+1)&0x00FF));_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad;_pins.fetch(_cpu.pc);}),
+
+        /*0x6D ADC abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ),
+
+        /*0x6E ROR abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x6F BBR6 */ 
+        BBR!(6),
+
+        /*0x70 BVS # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if(_cpu.flags&M6502Flags::V).is_empty(){_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ),
+
+        /*0x71 ADC (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0x72 ADC (zp), 2, 5-6, A + M + C → A, C */
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}), 
+        
+        /* 0x73 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x74 STZ zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x75 ADC zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);} ),
+
+        /*0x76 ROR zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x77 RMB7 */ 
+        RMB!(7),
+
+        /*0x78 SEI */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags|=M6502Flags::I;_pins.fetch(_cpu.pc);}   ),
+
+        /*0x79 ADC abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0x7A PLY, 1, 4, Y↑ */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));} ,
+            { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ),
+
+        /*0x7B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x7C JMP (abs, X), 3, 6, [PC + 1] → PCL, [PC + 2] → PCH */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8; } ,
+            { _cpu.ad=_cpu.ad.overflowing_add(_cpu.x as u16).0; _pins.sa(_cpu.ad);} ,
+            { _pins.sa(_cpu.ad+1);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.pc=((_pins.gd() as u16)<<8)|_cpu.ad; _pins.fetch(_cpu.pc);}),
+
+        /*0x7D ADC abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.adc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0x7E ROR abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _pins.sd(_cpu.ror(_cpu.ad as u8));_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x7F BBR7 */ 
+        BBR!(7),
+
+        /*0x80 BRA  */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);}),
+
+        /*0x81 STA (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x82 Nop 2 2 */ 
+        NOP22!(),
+
+        /*0x83 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x84 STY zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x85 STA zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x86 STX zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}  ),
+
+        /*0x87 SMB0 */ 
+        SMB!(0),
+
+        /*0x88 DEY */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.y = _cpu.y.overflowing_sub(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x89 BIT # , 2, 3, A ∧ M, M7 → N, M6 → V */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.bit(_cpu.ad as u8);_pins.fetch(_cpu.pc);}  ),
+
+        /*0x8A TXA */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a=_cpu.x;_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x8B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x8C STY abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x8D STA abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x8E STX abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x8F BBS0 */ 
+        BBS!(0),
+
+        /*0x90 BCC # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if !(_cpu.flags&M6502Flags::C).is_empty() {_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ),
+
+        /*0x91 STA (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x92 STA (zp), 2, 5, A → M */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+        
+        /* 0x93 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x94 STY zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(_cpu.y);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x95 STA zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x96 STX zp,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0x00FF);_pins.sd(_cpu.x);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x97 SMB1 */ 
+        SMB!(1),
+
+        /*0x98 TYA */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.a=_cpu.y;_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0x99 STA abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x9A TXS */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.s=_cpu.x;_pins.fetch(_cpu.pc);}   ),
+
+        /*0x9B NOP 1 1 */ 
+        NOP11!(),
+
+        /*0x9C STZ abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);} ),
+
+        /*0x9D STA abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);_pins.sd(_cpu.a);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x9E STZ abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);_pins.sd(0);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0x9F BBS1 */ 
+        BBS!(1),
+
+        /*0xA0 LDY # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}   ),
+
+        /*0xA1 LDA (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0xA2 LDX # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}   ),
+
+        /*0xA3 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xA4 LDY zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}  ),
+
+        /*0xA5 LDA zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}  ),
+
+        /*0xA6 LDX zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}  ),
+
+        /*0xA7 SMB2 */ 
+        SMB!(2),
+
+        /*0xA8 TAY */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.y=_cpu.a;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}   ),
+
+        /*0xA9 LDA # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}   ),
+
+        /*0xAA TAX */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.x=_cpu.a;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}   ),
+
+        /*0xAB NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xAC LDY abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ),
+
+        /*0xAD LDA abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0xAE LDX abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ),
+
+        /*0xAF BBS2 */ 
+        BBS!(2),
+
+        /*0xB0 BCS # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if (_cpu.flags&M6502Flags::C).is_empty() {_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);} ),
+
+        /*0xB1 LDA (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0xB2 LDA (zp), 2, 5, M → A */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+        
+        /* 0xB3 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xB4 LDY zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);} ),
+
+        /*0xB5 LDA zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);} ),
+
+        /*0xB6 LDX zp,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0x00FF);} ,
+            { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);} ),
+
+        /*0xB7 SMB3 */ 
+        SMB!(3),
+
+        /*0xB8 CLV */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags&=!M6502Flags::V;_pins.fetch(_cpu.pc);}   ),
+
+        /*0xB9 LDA abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|(_cpu.ad.overflowing_add(_cpu.y as u16).0 & 0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0xBA TSX */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.x=_cpu.s;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}   ),
+
+        /*0xBB NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xBC LDY abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.y=_pins.gd();_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}),
+
+        /*0xBD LDA abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.a=_pins.gd();_cpu.nz(_cpu.a);_pins.fetch(_cpu.pc);}),
+
+        /*0xBE LDX abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}),
+
+        /*0xBF BBS3 */ 
+        BBS!(3),
+
+        /*0xC0 CPY # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xC1 CMP (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xC2 NOP 2 2 */ 
+        NOP22!(),
+
+        /*0xC3 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xC4 CPY zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xC5 CMP zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xC6 DEC zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xC7 SMB4 */ 
+        SMB!(4),
+
+        /*0xC8 INY */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.y = _cpu.y.overflowing_add(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}),
+
+        /*0xC9 CMP # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xCA DEX */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.x=_cpu.x.overflowing_sub(1).0;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}),
+
+        /*0xCB NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xCC CPY abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.cmp(_cpu.y, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xCD CMP abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xCE DEC abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xCF BBS4 */ 
+        BBS!(4),
+
+        /*0xD0 BNE # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0; if !(_cpu.flags&M6502Flags::Z).is_empty() {_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);}),
+
+        /*0xD1 CMP (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xD2 CMP (zp), 2, 5, A - M */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /* 0xD3 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xD4 NOP 2 4 */ 
+        NOP24!(),
+
+        /*0xD5 CMP zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xD6 DEC zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xD7 SMB5 */ 
+        SMB!(5),
+
+        /*0xD8 CLD */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags&=!M6502Flags::D;_pins.fetch(_cpu.pc);}),
+
+        /*0xD9 CMP abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xDA PHX, 1, 3, X↑ */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sad(0x0100|(_cpu.s as u16),_cpu.x);_cpu.s=_cpu.s.overflowing_sub(1).0;_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xDB NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xDC NOP 3 4 */ 
+        NOP34!(),
+
+        /*0xDD CMP abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.cmp(_cpu.a, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xDE DEC abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_sub(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xDF BBS5 */ 
+        BBS!(5),
+
+        /*0xE0 CPX # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xE1 SBC (zp,X) */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _cpu.ad=(_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(1).0)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xE2 NOP 2 2 */ 
+        NOP22!(),
+
+        /*0xE3 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xE4 CPX zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xE5 SBC zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xE6 INC zp */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_pins.gd() as u16);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xE7 SMB6 */ 
+        SMB!(6),
+
+        /*0xE8 INX */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.x = _cpu.x.overflowing_add(1).0;_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}),
+
+        /*0xE9 SBC # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xEA NOP */ 
+        NOP12!(),
+
+        /*0xEB NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xEC CPX abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.cmp(_cpu.x, _pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xED SBC abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xEE INC abs */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _pins.sa(((_pins.gd() as u16)<<8)|_cpu.ad);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xEF BBS6 */ 
+        BBS!(6),
+
+        /*0xF0 BEQ # */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc);_cpu.ad=_cpu.pc.overflowing_add((_pins.gd() as i8) as u16).0;if (_cpu.flags&M6502Flags::Z).is_empty() {_pins.fetch(_cpu.pc);};} ,
+            { _pins.sa((_cpu.pc&0xFF00)|(_cpu.ad&0x00FF));if (_cpu.ad&0xFF00)==(_cpu.pc&0xFF00) {_cpu.pc=_cpu.ad;_cpu.irq_pip>>=1;_cpu.nmi_pip>>=1;_pins.fetch(_cpu.pc);};} ,
+            { _cpu.pc=_cpu.ad;_pins.fetch(_cpu.pc);}),
+
+        /*0xF1 SBC (zp),Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xF2 SBC (zp), 2, 5-6, A - M - ~C → A */
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad+1)&0xFF);_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa(_cpu.ad);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}), 
+        
+        /* 0xF3 NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xF4 NOP 2 4 */ 
+        NOP24!(),
+
+        /*0xF5 SBC zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xF6 INC zp,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.sa(_cpu.ad);} ,
+            { _pins.sa((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0x00FF);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xF7 SMB0 */ 
+        SMB!(7),
+
+        /*0xF8 SED */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _cpu.flags|=M6502Flags::D;_pins.fetch(_cpu.pc);}),
+
+        /*0xF9 SBC abs,Y */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.y as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.y as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.y as u16).0);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xFA PLX, 1, 4, X↑ */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc);} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));_cpu.s=_cpu.s.overflowing_add(1).0;} ,
+            { _pins.sa(0x0100|(_cpu.s as u16));} ,
+            { _cpu.x=_pins.gd();_cpu.nz(_cpu.x);_pins.fetch(_cpu.pc);}),
+
+        /*0xFB NOP 1 1 */ 
+        NOP11!(),
+
+        /*0xFC NOP 3 4 */ 
+        NOP34!(),
+
+        /*0xFD SBC abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));let v = (_cpu.ad>>8).overflowing_sub(_cpu.ad.overflowing_add(_cpu.x as u16).0>>8).0;_cpu.ir_step+=(!v as u8) & 1;} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.sbc(_pins.gd());_pins.fetch(_cpu.pc);}),
+
+        /*0xFE INC abs,X */ 
+        IR_STEPS!(_cpu,_pins,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
+            { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=_pins.gd() as u16;} ,
+            { _cpu.ad|=(_pins.gd() as u16)<<8;_pins.sa((_cpu.ad&0xFF00)|((_cpu.ad.overflowing_add(_cpu.x as u16).0)&0xFF));} ,
+            { _pins.sa(_cpu.ad.overflowing_add(_cpu.x as u16).0);} ,
+            { _cpu.ad=_pins.gd() as u16;_pins.pin_off(M6502_RW);} ,
+            { _cpu.ad=_cpu.ad.overflowing_add(1).0;_cpu.nz(_cpu.ad as u8);_pins.sd(_cpu.ad as u8);_pins.pin_off(M6502_RW);} ,
+            { _pins.fetch(_cpu.pc);}),
+
+        /*0xFF BBS7 */ 
+        BBS!(7),
+    ];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2310,13 +2121,12 @@ mod tests {
     struct TestCore {
         cpu_pins: CPUPins,
         cpu: M6502,
-        stepper: M6502Stepper,
         ram: [u8; 0x10000],
     }
 
     impl Default for TestCore {
         fn default() -> Self {
-            Self { cpu_pins: CPUPins::default(), cpu: M6502::new(), stepper: M6502Stepper::new(), ram: [0; 0x10000] }
+            Self { cpu_pins: CPUPins::default(), cpu: M6502::new(), ram: [0; 0x10000] }
         }
     }
 
@@ -2369,7 +2179,7 @@ mod tests {
     fn step(c: &mut TestCore) -> i32 {
         let mut ticks = 0;
         loop {
-            c.cpu_pins = c.stepper.tick(&mut c.cpu, c.cpu_pins);
+            c.cpu_pins = c.cpu.tick(c.cpu_pins);
             let addr = c.cpu_pins.ga();
 
             if c.cpu_pins.is_set(M6502_RW) {
