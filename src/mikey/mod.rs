@@ -601,9 +601,6 @@ impl Mikey {
                 self.registers.audin(),
             );
         }
-
-        bus.set_status(BusStatus::PokeDone);
-        self.registers.reset_ir();
     }
 
     fn iodat_updated(&mut self, cart: &mut Cartridge) {
