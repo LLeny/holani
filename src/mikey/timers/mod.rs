@@ -270,6 +270,11 @@ impl Timers {
     pub fn timer(&self, id: usize) -> &Timer {
         &self.timers[id]
     }
+
+    #[inline(always)]
+    pub fn audio_timer(&self, id: usize) -> &AudioTimerRegisters {
+        &self.audio_timer_regs[id]
+    }
 }
 
 impl Default for Timers {
