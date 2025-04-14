@@ -33,7 +33,7 @@ bitflags! {
 }
 
 bitflags! {
-    #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct Joystick:u8
     {
         const up       = 0b01000000;
@@ -48,7 +48,7 @@ bitflags! {
 }
 
 bitflags! {
-    #[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
     pub struct Switches:u8
     {
         const cart1_inactive = 0b00000100;
