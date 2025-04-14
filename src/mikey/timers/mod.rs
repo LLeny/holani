@@ -264,7 +264,12 @@ impl Timers {
     #[inline(always)]
     pub fn audio_out(&self, n: usize) -> i16 {
         self.audio_timer_regs[n].output() as i16
-    }    
+    }   
+
+    #[inline(always)]
+    pub fn timer(&self, id: usize) -> &Timer {
+        &self.timers[id]
+    }
 }
 
 impl Default for Timers {
