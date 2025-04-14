@@ -13,7 +13,7 @@ use registers::*;
 use serde::{Deserialize, Serialize};
 use super::*;
 
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SuzyInstruction {
     None,
     Peek,
@@ -29,7 +29,7 @@ pub enum SuzyInstruction {
     PokeSprSys,
 }
 
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SuzyTask {
     None,
     SpriteGo,

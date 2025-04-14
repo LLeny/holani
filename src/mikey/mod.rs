@@ -21,7 +21,7 @@ use uart::{comlynx_cable_mutex::ComlynxCable, Uart};
 use uart::{comlynx_cable_shared_memory::ComlynxCable, Uart};
 use video::*;
 
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MikeyInstruction {
     None,
     TimersPeek,
