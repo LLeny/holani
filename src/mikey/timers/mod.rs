@@ -44,7 +44,7 @@ pub enum TimerReg {
     ShiftRegister,    
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Timers {
     timers: [Timer; TIMER_COUNT + AUDIO_TIMER_COUNT],
     audio_timer_regs: [AudioTimerRegisters; AUDIO_TIMER_COUNT],
@@ -154,8 +154,9 @@ impl Timers {
 
     pub fn timer_count_down(timer: &mut Timer, audio: Option<&mut AudioTimerRegisters>) -> (bool, u8) {
         timer.set_control_b((timer.control_b() & !CTRLB_BORROW_OUT_BIT) | CTRLB_BORROW_IN_BIT);
+        let count = timer.count();
 
-        if timer.count() == 0 {
+        if count == 0 {
             if timer.reload_enabled() {
                 trace!("Timer #{} reload 0x{:02x} next trigger @ {}.", timer.id(), timer.backup(), timer.next_trigger_tick());
                 timer.set_count_transparent(timer.backup());
@@ -170,7 +171,7 @@ impl Timers {
                     timer.done()
                 });
         } else {
-            timer.set_count_transparent(timer.count() - 1)
+            timer.set_count_transparent(count - 1)
         }
         (false, 0)
     }
