@@ -57,7 +57,7 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum TaskStep {
     None = 0,
@@ -97,7 +97,7 @@ pub fn joystick_swap(mut j: Joystick, b1: Joystick, b2: Joystick) -> Joystick {
     j
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuzyRegisters {
     data: Vec<u8>,
     ir_ticks_delay: u16,
