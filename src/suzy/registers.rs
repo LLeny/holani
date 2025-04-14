@@ -97,7 +97,7 @@ pub fn joystick_swap(mut j: Joystick, b1: Joystick, b2: Joystick) -> Joystick {
     j
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SuzyRegisters {
     data: Vec<u8>,
     ir_ticks_delay: u16,

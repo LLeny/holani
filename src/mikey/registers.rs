@@ -72,7 +72,7 @@ bitflags! {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct MikeyRegisters {
     ticks_delay: u16,
     data_r: u16,
