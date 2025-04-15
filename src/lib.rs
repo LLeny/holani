@@ -1,5 +1,4 @@
 #![no_std]
-
 #[macro_use]
 extern crate alloc;
 
@@ -12,7 +11,7 @@ pub mod suzy;
 pub mod vectors;
 pub mod consts;
 pub mod lynx;
-mod shared_memory;
+pub mod shared_memory;
 
 pub fn serialize(lynx: &lynx::Lynx, data: &mut [u8]) -> Result<(), &'static str> {
     match postcard::to_slice(&lynx, data) {
