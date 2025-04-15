@@ -39,6 +39,11 @@ impl SharedMemory {
         let ptr = self.data.get();
         unsafe { &mut (*ptr) }
     }
+
+    pub unsafe fn as_slice(&self) -> &[u8] {
+        let ptr = self.data.get();
+        unsafe { &(*ptr) }
+    }
 }
 
 impl Default for SharedMemory {
