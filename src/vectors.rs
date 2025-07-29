@@ -1,6 +1,9 @@
+use crate::{
+    bus::{Bus, BusStatus},
+    consts::{INTV_ADDR, NMIV_ADDR, RESV_ADDR},
+};
 use log::trace;
 use serde::{Deserialize, Serialize};
-use crate::{bus::{Bus, BusStatus}, consts::*};
 
 const VECTOR_NORMAL_READ_TICKS: i8 = 5;
 const VECTOR_NORMAL_WRITE_TICKS: i8 = 5;
@@ -16,6 +19,7 @@ pub struct Vectors {
 }
 
 impl Vectors {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: [0, 0, 0x80, 0xff, 0, 0],
@@ -31,6 +35,7 @@ impl Vectors {
         self.data.clone_from_slice(data);
     }
 
+    #[must_use]
     pub fn get(&self, addr: u16) -> u8 {
         self.data[(addr - NMIV_ADDR) as usize]
     }
@@ -47,7 +52,12 @@ impl Vectors {
         self.addr_r = bus.addr();
         self.write = true;
         self.data_r = bus.data();
-        trace!("[{}] > Poke 0x{:04x} = 0x{:02x}", self.ticks, bus.addr(), bus.data());
+        trace!(
+            "[{}] > Poke 0x{:04x} = 0x{:02x}",
+            self.ticks,
+            bus.addr(),
+            bus.data()
+        );
     }
 
     pub fn tick(&mut self, bus: &mut Bus) {
@@ -66,33 +76,40 @@ impl Vectors {
                 self.ticks_to_done = -1;
             }
             _ => self.ticks_to_done -= 1,
-        };
+        }
         self.ticks += 1;
     }
+    #[must_use]
     pub fn write(&self) -> bool {
         self.write
     }
 
+    #[must_use]
     pub fn ready(&self) -> bool {
         self.ticks_to_done == -1
     }
 
+    #[must_use]
     pub fn data(&self, addr: u16) -> u8 {
         self.data[(addr - NMIV_ADDR) as usize]
     }
 
+    #[must_use]
     pub fn u16(&self, addr: u16) -> u16 {
-        self.data(addr) as u16 | ((self.data(addr+1) as u16) << 8)
+        u16::from(self.data(addr)) | (u16::from(self.data(addr + 1)) << 8)
     }
 
+    #[must_use]
     pub fn interrupt(&self) -> u16 {
         self.u16(INTV_ADDR)
     }
 
+    #[must_use]
     pub fn nmi(&self) -> u16 {
         self.u16(NMIV_ADDR)
     }
 
+    #[must_use]
     pub fn reset(&self) -> u16 {
         self.u16(RESV_ADDR)
     }

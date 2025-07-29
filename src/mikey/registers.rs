@@ -1,33 +1,36 @@
+use super::{
+    alloc, uart, Deserialize, MikeyInstruction, Serialize, Uart, ATTEN_A, ATTEN_B, ATTEN_C,
+    ATTEN_D, BLUERED0, BLUEREDF, DISPADR, GREEN0, GREENF, MIK_ADDR, MPAN, MSTEREO,
+};
 use alloc::vec::Vec;
-use log::trace;
 use bitflags::bitflags;
-use super::*;
+use log::trace;
 
-macro_rules! atten_left{
+macro_rules! atten_left {
     ($attn_buff: ident, $channel: expr, $regs: expr) => {
-        if ($regs.data(MSTEREO) & (0x10<<$channel)) != 0 {
-            if ($regs.data(MPAN) & (0x10<<$channel)) != 0 {
-                ($regs.data($attn_buff) >> 4) as f32 / 15f32
+        if ($regs.data(MSTEREO) & (0x10 << $channel)) != 0 {
+            if ($regs.data(MPAN) & (0x10 << $channel)) != 0 {
+                f32::from($regs.data($attn_buff) >> 4) / 15f32
             } else {
                 0.
-            }            
+            }
         } else {
             1f32
-        }        
+        }
     };
 }
 
-macro_rules! atten_right{
+macro_rules! atten_right {
     ($attn_buff: ident, $channel: expr, $regs: expr) => {
-        if ($regs.data(MSTEREO) & (1<<$channel)) != 0 {
-            if ($regs.data(MPAN) & (1<<$channel)) != 0 {
-                ($regs.data($attn_buff) & 0xF) as f32 / 15f32
+        if ($regs.data(MSTEREO) & (1 << $channel)) != 0 {
+            if ($regs.data(MPAN) & (1 << $channel)) != 0 {
+                f32::from($regs.data($attn_buff) & 0xF) / 15f32
             } else {
                 0.
-            }            
+            }
         } else {
             1f32
-        }          
+        }
     };
 }
 
@@ -35,14 +38,14 @@ bitflags! {
     #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
     pub struct SerCtlW:u8
     {
-        const tx_int_en = 0b10000000;
-        const rx_int_en = 0b01000000;
-        const zero      = 0b00100000;
-        const par_en    = 0b00010000;
-        const reset_err = 0b00001000;
-        const tx_open   = 0b00000100;
-        const tx_brk    = 0b00000010;
-        const par_even  = 0b00000001;
+        const tx_int_en = 0b1000_0000;
+        const rx_int_en = 0b0100_0000;
+        const zero      = 0b0010_0000;
+        const par_en    = 0b0001_0000;
+        const reset_err = 0b0000_1000;
+        const tx_open   = 0b0000_0100;
+        const tx_brk    = 0b0000_0010;
+        const par_even  = 0b0000_0001;
     }
 }
 
@@ -50,14 +53,14 @@ bitflags! {
     #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
     pub struct SerCtlR:u8
     {
-        const tx_rdy    = 0b10000000;
-        const rx_rdy    = 0b01000000;
-        const tx_empty  = 0b00100000;
-        const par_err   = 0b00010000;
-        const overrun   = 0b00001000;
-        const frame_err = 0b00000100;
-        const rx_brk    = 0b00000010;
-        const par_bit   = 0b00000001;
+        const tx_rdy    = 0b1000_0000;
+        const rx_rdy    = 0b0100_0000;
+        const tx_empty  = 0b0010_0000;
+        const par_err   = 0b0001_0000;
+        const overrun   = 0b0000_1000;
+        const frame_err = 0b0000_0100;
+        const rx_brk    = 0b0000_0010;
+        const par_bit   = 0b0000_0001;
     }
 }
 
@@ -65,10 +68,10 @@ bitflags! {
     #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
     pub struct DispCtl:u8
     {
-        const color      = 0b00001000;
-        const fourbit    = 0b00000100;
-        const flip       = 0b00000010;
-        const dma_enable = 0b00000001;
+        const color      = 0b0000_1000;
+        const fourbit    = 0b0000_0100;
+        const flip       = 0b0000_0010;
+        const dma_enable = 0b0000_0001;
     }
 }
 
@@ -92,6 +95,7 @@ pub struct MikeyRegisters {
 }
 
 impl MikeyRegisters {
+    #[must_use]
     pub fn new() -> Self {
         let mut slf = Self {
             ticks_delay: 0,
@@ -111,8 +115,8 @@ impl MikeyRegisters {
             attenuation_right: [0.; 4],
         };
         for i in 0..16 {
-            slf.set_data(GREEN0+i, 0xff);
-            slf.set_data(BLUERED0+i, 0xff);
+            slf.set_data(GREEN0 + i, 0xff);
+            slf.set_data(BLUERED0 + i, 0xff);
         }
         slf.set_data(ATTEN_A, 0xFF);
         slf.set_data(ATTEN_B, 0xFF);
@@ -128,10 +132,12 @@ impl MikeyRegisters {
         self.cart_shift |= bit;
     }
 
+    #[must_use]
     pub fn cart_shift(&self) -> u8 {
         self.cart_shift
     }
 
+    #[must_use]
     pub fn cart_position(&self) -> u16 {
         self.cart_position
     }
@@ -148,6 +154,7 @@ impl MikeyRegisters {
         self.cart_shift = 0;
     }
 
+    #[must_use]
     pub fn data(&self, addr: u16) -> u8 {
         self.data[(addr - MIK_ADDR) as usize]
     }
@@ -157,66 +164,72 @@ impl MikeyRegisters {
             GREEN0..=GREENF => {
                 data &= 0x0f; // Behave as 4 bits registers.
                 self.data[(addr - MIK_ADDR) as usize] = data;
-                self.update_pen(addr-GREEN0);
+                self.update_pen(addr - GREEN0);
             }
             BLUERED0..=BLUEREDF => {
                 self.data[(addr - MIK_ADDR) as usize] = data;
-                self.update_pen(addr-BLUERED0);
+                self.update_pen(addr - BLUERED0);
             }
             _ => self.data[(addr - MIK_ADDR) as usize] = data,
         }
-        trace!("> Poke 0x{:04x} = 0x{:02x}", addr, data);        
+        trace!("> Poke 0x{addr:04x} = 0x{data:02x}");
     }
-    
+
     fn update_pen(&mut self, pen_index: u16) {
-        let bluered = self.data(BLUERED0+pen_index);
-        let green = self.data(GREEN0+pen_index);
+        let bluered = self.data(BLUERED0 + pen_index);
+        let green = self.data(GREEN0 + pen_index);
         self.palette[pen_index as usize][0] = (bluered & 0xf) * 16;
         self.palette[pen_index as usize][1] = (green & 0xf) * 16;
         self.palette[pen_index as usize][2] = (bluered >> 4) * 16;
     }
 
     #[inline]
+    #[must_use]
     pub fn get_pen(&self, pen_index: u8) -> &[u8; 3] {
         &self.palette[pen_index as usize]
     }
 
+    #[must_use]
     pub fn ticks_delay(&self) -> u16 {
         self.ticks_delay
     }
-    
+
     pub fn set_ticks_delay(&mut self, ticks_delay: u16) {
         self.ticks_delay = ticks_delay;
     }
-    
+
     pub fn dec_ticks_delay(&mut self) {
         self.ticks_delay -= 1;
     }
 
+    #[must_use]
     pub fn data_r(&self) -> u16 {
         self.data_r
     }
-    
+
     pub fn set_data_r(&mut self, data_r: u16) {
         self.data_r = data_r;
     }
-    
+
+    #[must_use]
     pub fn u16(&self, addr: u16) -> u16 {
-        self.data(addr) as u16 | ((self.data(addr+1) as u16) << 8)
+        u16::from(self.data(addr)) | (u16::from(self.data(addr + 1)) << 8)
     }
 
+    #[must_use]
     pub fn addr_r(&self) -> u16 {
         self.addr_r
     }
-    
+
     pub fn set_addr_r(&mut self, addr_r: u16) {
         self.addr_r = addr_r;
     }
-    
+
+    #[must_use]
     pub fn ir(&self) -> MikeyInstruction {
         self.ir
     }
-    
+
     pub fn set_ir(&mut self, ir: MikeyInstruction) {
         self.ir = ir;
     }
@@ -224,23 +237,27 @@ impl MikeyRegisters {
     pub fn reset_ir(&mut self) {
         self.ir = MikeyInstruction::None;
     }
-    
+
+    #[must_use]
     pub fn audin(&self) -> u16 {
         self.audin
     }
-    
+
     pub fn set_audin(&mut self, audin: u16) {
         self.audin = audin;
     }
 
+    #[must_use]
     pub fn disp_addr(&self) -> u16 {
         self.u16(DISPADR)
     }
 
+    #[must_use]
     pub fn serctl(&self) -> u8 {
         self.serctl_r.bits()
     }
 
+    #[must_use]
     pub fn dispctl(&self) -> u8 {
         self.dispctl.bits()
     }
@@ -250,6 +267,7 @@ impl MikeyRegisters {
         self.is_flipped = self.dispctl.contains(DispCtl::flip);
     }
 
+    #[must_use]
     pub fn is_flipped(&self) -> bool {
         self.is_flipped
     }
@@ -258,10 +276,11 @@ impl MikeyRegisters {
         let brk = self.serctl_w_is_flag_set(SerCtlW::tx_brk);
         self.serctl_w = match SerCtlW::from_bits(v) {
             Some(bits) => bits,
-            None => SerCtlW::empty()
+            None => SerCtlW::empty(),
         };
 
-        if brk && !self.serctl_w_is_flag_set(SerCtlW::tx_brk) { //Set redeye to high if break has been disabled
+        if brk && !self.serctl_w_is_flag_set(SerCtlW::tx_brk) {
+            //Set redeye to high if break has been disabled
             uart.set_redeye_pin(uart::redeye_status::RedeyeStatus::High);
         }
 
@@ -281,6 +300,7 @@ impl MikeyRegisters {
         self.serctl_r.set(flag, false);
     }
 
+    #[must_use]
     pub fn serctl_r_is_flag_set(&self, flag: SerCtlR) -> bool {
         self.serctl_r.contains(flag)
     }
@@ -293,6 +313,7 @@ impl MikeyRegisters {
         self.serctl_w.set(flag, false);
     }
 
+    #[must_use]
     pub fn serctl_w_is_flag_set(&self, flag: SerCtlW) -> bool {
         self.serctl_w.contains(flag)
     }
@@ -309,10 +330,12 @@ impl MikeyRegisters {
         self.attenuation_right[3] = atten_right!(ATTEN_D, 3, self);
     }
 
+    #[must_use]
     pub fn attenuation_left(&self, i: usize) -> f32 {
         self.attenuation_left[i]
     }
 
+    #[must_use]
     pub fn attenuation_right(&self, i: usize) -> f32 {
         self.attenuation_right[i]
     }

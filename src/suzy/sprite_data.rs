@@ -1,7 +1,10 @@
 use log::trace;
 use mikey::video::LYNX_SCREEN_WIDTH;
 
-use super::*;
+use super::{
+    mikey, Deserialize, Serialize, SuzyRegisters, COLLADRL, COLLBASL, LINE_END, SPRCTL1_LITERAL,
+    SPRDLINEL, SUZY_DATA_BUFFER_LEN, VIDADRL, VIDBASL,
+};
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum LineType {
@@ -23,7 +26,8 @@ pub struct SpriteData {
 }
 
 impl SpriteData {
-    pub fn new () -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             shift_reg: 0,
             bits_left: 0xffff,
@@ -35,20 +39,23 @@ impl SpriteData {
         }
     }
 
-    pub fn reset(&mut self, regs: &mut SuzyRegisters)
-    {
+    pub fn reset(&mut self, regs: &mut SuzyRegisters) {
         self.shift_reg = 0;
         self.shift_reg_count = 0;
         self.repeat_count = 0;
         self.line_pixel = 0;
-        self.line_type = LineType::Error;  
-        self.bits_left = 0xffff;   
+        self.line_type = LineType::Error;
+        self.bits_left = 0xffff;
         self.addr = regs.u16(SPRDLINEL);
         trace!("reset");
     }
 
+    /// Initializes the sprite data with the given registers and vertical offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is not enough data available to read the offset.
     pub fn initialize(&mut self, regs: &mut SuzyRegisters, voff: i16) -> Result<u16, &'static str> {
-
         let offset = match self.get_bits(8) {
             None => return Err("Not enough data available"),
             Some(v) => v as u16,
@@ -58,7 +65,7 @@ impl SpriteData {
 
         if regs.sprctl1() & SPRCTL1_LITERAL != 0 {
             self.line_type = LineType::AbsLiteral;
-            self.repeat_count = self.bits_left / (regs.bpp() + 1) as u16;
+            self.repeat_count = self.bits_left / u16::from(regs.bpp() + 1);
         }
 
         let sprvpos2 = voff * LYNX_SCREEN_WIDTH as i16 / 2;
@@ -67,16 +74,25 @@ impl SpriteData {
 
         regs.set_i16(COLLADRL, regs.i16(COLLBASL) + sprvpos2);
 
-        trace!("initialize({}) offset:{} bits_left:{}", voff, offset, self.bits_left);
-    
+        trace!(
+            "initialize({}) offset:{} bits_left:{}",
+            voff,
+            offset,
+            self.bits_left
+        );
+
         Ok(offset)
     }
 
     pub fn push_data(&mut self, data: u8) {
         self.shift_reg <<= SUZY_DATA_BUFFER_LEN * 8;
-        self.shift_reg |= (data as u16) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);    
+        self.shift_reg |= u16::from(data) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);
         self.shift_reg_count += SUZY_DATA_BUFFER_LEN * 8;
-        trace!("Push shift_reg 0x{:08x} shift_reg_count:{}", self.shift_reg, self.shift_reg_count);
+        trace!(
+            "Push shift_reg 0x{:08x} shift_reg_count:{}",
+            self.shift_reg,
+            self.shift_reg_count
+        );
     }
 
     pub fn get_bits(&mut self, bits: u16) -> Option<u32> {
@@ -88,29 +104,48 @@ impl SpriteData {
         }
 
         if self.shift_reg_count < bits {
-            trace!("get_bits({}) shift_reg_count too low {}.", bits, self.shift_reg_count);
+            trace!(
+                "get_bits({}) shift_reg_count too low {}.",
+                bits,
+                self.shift_reg_count
+            );
             return None;
         }
 
-        ret = (self.shift_reg >> (self.shift_reg_count - bits)) as u32;
+        ret = u32::from(self.shift_reg >> (self.shift_reg_count - bits));
         ret &= (1 << bits) - 1;
-    
+
         self.shift_reg_count -= bits;
         self.bits_left -= bits;
 
-        trace!("get_bits({}), shift_reg_count {}, bits_left {} -> {}", bits, self.shift_reg_count, self.bits_left, ret);
+        trace!(
+            "get_bits({}), shift_reg_count {}, bits_left {} -> {}",
+            bits,
+            self.shift_reg_count,
+            self.bits_left,
+            ret
+        );
 
         Some(ret)
     }
 
-    pub fn line_get_pixel(&mut self, regs: &mut SuzyRegisters, pens: &[u8; 16]) -> Result<u32, &'static str> {
+    /// Gets the next pixel from the sprite line.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is not enough data in the buffer to process the next pixel.
+    pub fn line_get_pixel(
+        &mut self,
+        regs: &mut SuzyRegisters,
+        pens: &[u8; 16],
+    ) -> Result<u32, &'static str> {
         trace!("- line_get_pixel");
         if self.shift_reg_count < 9 {
             trace!("line_get_pixel buffer too low");
             return Err("Data buffer too low");
         }
 
-        let bpp : u16 = regs.bpp() as u16 + 1;
+        let bpp: u16 = u16::from(regs.bpp()) + 1;
 
         if 0 == self.repeat_count {
             if self.line_type != LineType::AbsLiteral {
@@ -121,11 +156,11 @@ impl SpriteData {
                     self.line_type = LineType::Packed;
                 }
             }
-    
+
             match self.line_type {
                 LineType::AbsLiteral => {
                     self.line_pixel = LINE_END;
-                    return Result::Ok(self.line_pixel); 
+                    return Result::Ok(self.line_pixel);
                 }
                 LineType::Literal => {
                     self.repeat_count = self.get_bits(4).unwrap() as u16;
@@ -137,14 +172,14 @@ impl SpriteData {
                         self.line_pixel = LINE_END;
                     } else {
                         let bits = self.get_bits(bpp).unwrap() as u8;
-                        self.line_pixel = pens[bits as usize] as u32;
+                        self.line_pixel = u32::from(pens[bits as usize]);
                     }
                     self.repeat_count += 1;
                 }
-                _ => return Ok(0),
+                LineType::Error => return Ok(0),
             }
         }
-    
+
         if self.line_pixel != LINE_END {
             self.repeat_count -= 1;
             match self.line_type {
@@ -153,29 +188,31 @@ impl SpriteData {
                     if self.repeat_count == 0 && self.line_pixel == 0 {
                         self.line_pixel = LINE_END;
                     } else {
-                        self.line_pixel = pens[self.line_pixel as usize] as u32;
+                        self.line_pixel = u32::from(pens[self.line_pixel as usize]);
                     }
                 }
                 LineType::Literal => {
                     let bits = self.get_bits(bpp).unwrap() as u8;
-                    self.line_pixel = pens[bits as usize] as u32;
+                    self.line_pixel = u32::from(pens[bits as usize]);
                 }
                 LineType::Packed => (),
-                _ => return Ok(0),
+                LineType::Error => return Ok(0),
             }
         }
-    
+
         Ok(self.line_pixel)
     }
-    
+
+    #[must_use]
     pub fn addr(&self) -> u16 {
         self.addr
     }
-    
+
     pub fn set_addr(&mut self, addr: u16) {
         self.addr = addr;
     }
-    
+
+    #[must_use]
     pub fn shift_reg_count(&self) -> u16 {
         self.shift_reg_count
     }

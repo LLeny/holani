@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use log::trace;
 
-use crate::*;
-use super::*;
+use super::{Deserialize, MikeyRegisters, Serialize};
+use crate::alloc;
 
 pub const LYNX_SCREEN_WIDTH: u32 = 160;
 pub const LYNX_SCREEN_HEIGHT: u32 = 102;
@@ -14,7 +14,7 @@ const VBLANK_VSYNC_COUNT: u8 = 102;
 #[derive(Serialize, Deserialize, Clone)]
 struct VideoBuffer {
     #[serde(skip)]
-    #[serde(default="create_rgb_buffer")]
+    #[serde(default = "create_rgb_buffer")]
     rgb_buffer: Vec<u8>,
     buffer_index: usize,
 }
@@ -42,7 +42,7 @@ fn create_video_buffers() -> Vec<VideoBuffer> {
 
 macro_rules! pixel {
     ($p: expr) => {
-        ($p.rotate_right(4) as u64)
+        u64::from($p.rotate_right(4))
     };
 }
 
@@ -52,7 +52,7 @@ impl VideoBuffer {
             rgb_buffer: vec![0; RGB_SCREEN_BUFFER_LEN],
             buffer_index: 0,
         }
-    } 
+    }
 
     #[inline]
     pub fn reset(&mut self) {
@@ -61,19 +61,20 @@ impl VideoBuffer {
     }
 
     #[inline]
-    pub fn push(&mut self, pix: &[u8; 3]) {
+    pub fn push(&mut self, pix: [u8; 3]) {
         trace!("push pixel {}", self.buffer_index);
-        self.rgb_buffer[self.buffer_index..self.buffer_index+3].copy_from_slice(pix);
+        self.rgb_buffer[self.buffer_index..self.buffer_index + 3].copy_from_slice(&pix);
         self.buffer_index += 3;
     }
 
     #[inline]
-    pub fn screen(&self) -> &Vec<u8>{
+    pub fn screen(&self) -> &Vec<u8> {
         &self.rgb_buffer
     }
 }
 
 impl Video {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             buffers: vec![VideoBuffer::new(), VideoBuffer::new()],
@@ -107,9 +108,14 @@ impl Video {
     }
 
     pub fn push_pix_buffer(&mut self, pixs: &[u8]) {
-        self.pix_buffer = 
-            pixel!(pixs[0]) | (pixel!(pixs[1]) << 8)  | (pixel!(pixs[2]) << 16) | (pixel!(pixs[3]) << 24) |
-            (pixel!(pixs[4]) << 32) | (pixel!(pixs[5]) << 40) | (pixel!(pixs[6]) << 48) | (pixel!(pixs[7]) << 56);
+        self.pix_buffer = pixel!(pixs[0])
+            | (pixel!(pixs[1]) << 8)
+            | (pixel!(pixs[2]) << 16)
+            | (pixel!(pixs[3]) << 24)
+            | (pixel!(pixs[4]) << 32)
+            | (pixel!(pixs[5]) << 40)
+            | (pixel!(pixs[6]) << 48)
+            | (pixel!(pixs[7]) << 56);
         self.pix_buffer_available = 16;
         trace!("push_pix_buffer 0x{:04X}", self.pix_buffer);
     }
@@ -123,7 +129,7 @@ impl Video {
     }
 
     #[inline]
-    pub fn hsync(&mut self, count: u8, regs: &MikeyRegisters) {      
+    pub fn hsync(&mut self, count: u8, regs: &MikeyRegisters) {
         self.vsync_count = count;
         self.send_row_buffer(regs);
         if count == VBLANK_VSYNC_COUNT + 2 {
@@ -138,14 +144,15 @@ impl Video {
         let draw_buffer = &mut self.buffers[self.draw_buffer];
         for pixel in &self.display_row_buffer {
             let rgb = regs.get_pen(*pixel);
-            draw_buffer.push(rgb);
+            draw_buffer.push(*rgb);
         }
         self.display_row_buffer.clear();
     }
 
     #[inline]
     fn is_available(&mut self) -> bool {
-        self.vsync_count < VBLANK_VSYNC_COUNT && self.display_row_buffer.len() < LYNX_SCREEN_WIDTH as usize
+        self.vsync_count < VBLANK_VSYNC_COUNT
+            && self.display_row_buffer.len() < LYNX_SCREEN_WIDTH as usize
     }
 
     #[inline]
@@ -161,14 +168,18 @@ impl Video {
             return None;
         }
         match self.pix_buffer_available {
-            0 => Some(self.draw_buffer().buffer_index as u16/6 + self.display_row_buffer.len() as u16/2),
-            _ => None
+            0 => Some(
+                self.draw_buffer().buffer_index as u16 / 6
+                    + self.display_row_buffer.len() as u16 / 2,
+            ),
+            _ => None,
         }
     }
 
     #[inline]
+    #[must_use]
     pub fn rgb_screen(&self) -> &Vec<u8> {
-        self.buffers[1-self.draw_buffer].screen()
+        self.buffers[1 - self.draw_buffer].screen()
     }
 }
 

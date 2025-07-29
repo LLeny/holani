@@ -1,7 +1,10 @@
+use super::bus::{Bus, BusStatus};
+use crate::{
+    consts::{MMC_ADDR, RAM_NORMAL_READ_TICKS, RAM_NORMAL_WRITE_TICKS, RAM_PAGE_READ_TICKS},
+    shared_memory::SharedMemory,
+};
 use log::trace;
-use crate::{consts::*, shared_memory::SharedMemory};
-use serde::{Serialize, Deserialize};
-use super::bus::*;
+use serde::{Deserialize, Serialize};
 
 pub const RAM_MAX: u16 = 0xffff;
 
@@ -16,6 +19,7 @@ pub struct Ram {
 }
 
 impl Ram {
+    #[must_use]
     pub fn new() -> Ram {
         let mut r = Ram {
             data: SharedMemory::new((RAM_MAX as usize) + 1, 0xFF),
@@ -66,7 +70,12 @@ impl Ram {
         self.addr_r = bus.addr();
         self.write = true;
         self.data_r = bus.data();
-        trace!("[{}] > Poke 0x{:04x} = 0x{:02x}", self.ticks, self.addr_r, self.data_r);
+        trace!(
+            "[{}] > Poke 0x{:04x} = 0x{:02x}",
+            self.ticks,
+            self.addr_r,
+            self.data_r
+        );
     }
 
     pub fn tick(&mut self, bus: &mut Bus) {
@@ -80,12 +89,17 @@ impl Ram {
                 } else {
                     bus.set_data(self.data[self.addr_r as usize]);
                     bus.set_status(BusStatus::PeekDone);
-                    trace!("[{}] < Peek 0x{:04x} -> 0x{:02x}", self.ticks, self.addr_r, bus.data());
+                    trace!(
+                        "[{}] < Peek 0x{:04x} -> 0x{:02x}",
+                        self.ticks,
+                        self.addr_r,
+                        bus.data()
+                    );
                 }
                 self.ticks_to_done = -1;
             }
             _ => self.ticks_to_done -= 1,
-        };
+        }
         self.ticks += 1;
     }
 
