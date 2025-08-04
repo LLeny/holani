@@ -120,28 +120,23 @@ impl Timers {
     ) {
         #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
         unsafe {
-            use core::arch::x86_64::{_mm256_cmpgt_epi64,_mm256_loadu_si256,_mm256_set1_epi64x,_mm256_storeu_si256};
+            use core::arch::x86_64::{
+                _mm256_cmpgt_epi64, _mm256_loadu_si256, _mm256_set1_epi64x, _mm256_storeu_si256,
+            };
+
+            let src1 = _mm256_loadu_si256(self.trigger[0..4].as_ptr() as *const _);
+            let src2 = _mm256_loadu_si256(self.trigger[4..8].as_ptr() as *const _);
+            let src3 = _mm256_loadu_si256(self.trigger[8..12].as_ptr() as *const _);
 
             let ticks = _mm256_set1_epi64x(self.ticks);
 
-            _mm256_storeu_si256(
-                not_triggered[0..4].as_mut_ptr() as *mut _,
-                _mm256_cmpgt_epi64(_mm256_loadu_si256(self.trigger.as_ptr() as *const _), ticks),
-            );
-            _mm256_storeu_si256(
-                not_triggered[4..8].as_mut_ptr() as *mut _,
-                _mm256_cmpgt_epi64(
-                    _mm256_loadu_si256(self.trigger[4..].as_ptr() as *const _),
-                    ticks,
-                ),
-            );
-            _mm256_storeu_si256(
-                not_triggered[8..12].as_mut_ptr() as *mut _,
-                _mm256_cmpgt_epi64(
-                    _mm256_loadu_si256(self.trigger[8..].as_ptr() as *const _),
-                    ticks,
-                ),
-            );
+            let cmp1 = _mm256_cmpgt_epi64(src1, ticks);
+            let cmp2 = _mm256_cmpgt_epi64(src2, ticks);
+            let cmp3 = _mm256_cmpgt_epi64(src3, ticks);
+
+            _mm256_storeu_si256(not_triggered[0..4].as_mut_ptr() as *mut _, cmp1);
+            _mm256_storeu_si256(not_triggered[4..8].as_mut_ptr() as *mut _, cmp2);
+            _mm256_storeu_si256(not_triggered[8..12].as_mut_ptr() as *mut _, cmp3);
 
             return;
         }
