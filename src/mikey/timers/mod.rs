@@ -64,9 +64,9 @@ pub enum TimerReg {
 pub struct Timers {
     timer: [Timer; TIMER_COUNT + AUDIO_TIMER_COUNT],
     audio_reg: [AudioTimerRegisters; AUDIO_TIMER_COUNT],
-    trigger: [u64; TIMER_COUNT + AUDIO_TIMER_COUNT],
+    trigger: [i64; TIMER_COUNT + AUDIO_TIMER_COUNT],
     triggered: [bool; TIMER_COUNT + AUDIO_TIMER_COUNT],
-    ticks: u64,
+    ticks: i64,
 }
 
 impl Timers {
@@ -87,7 +87,7 @@ impl Timers {
                 Timer::new(10, TIMER_LINKS[10], 0),
                 Timer::new(11, TIMER_LINKS[11], 0),
             ],
-            trigger: [u64::MAX; TIMER_COUNT + AUDIO_TIMER_COUNT],
+            trigger: [i64::MAX; TIMER_COUNT + AUDIO_TIMER_COUNT],
             ticks: 0,
             audio_reg: [AudioTimerRegisters::new(); AUDIO_TIMER_COUNT],
             triggered: [false; TIMER_COUNT + AUDIO_TIMER_COUNT],
@@ -112,31 +112,71 @@ impl Timers {
         None
     }
 
-    pub fn tick_all(&mut self, current_tick: u64) -> (u8, bool) {
+    #[inline]
+    #[allow(unreachable_code)]
+    pub fn check_if_triggered(
+        &mut self,
+        not_triggered: &mut [i64; TIMER_COUNT + AUDIO_TIMER_COUNT],
+    ) {
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+        unsafe {
+            use core::arch::x86_64::{_mm256_cmpgt_epi64,_mm256_loadu_si256,_mm256_set1_epi64x,_mm256_storeu_si256};
+
+            let ticks = _mm256_set1_epi64x(self.ticks);
+
+            _mm256_storeu_si256(
+                not_triggered[0..4].as_mut_ptr() as *mut _,
+                _mm256_cmpgt_epi64(_mm256_loadu_si256(self.trigger.as_ptr() as *const _), ticks),
+            );
+            _mm256_storeu_si256(
+                not_triggered[4..8].as_mut_ptr() as *mut _,
+                _mm256_cmpgt_epi64(
+                    _mm256_loadu_si256(self.trigger[4..].as_ptr() as *const _),
+                    ticks,
+                ),
+            );
+            _mm256_storeu_si256(
+                not_triggered[8..12].as_mut_ptr() as *mut _,
+                _mm256_cmpgt_epi64(
+                    _mm256_loadu_si256(self.trigger[8..].as_ptr() as *const _),
+                    ticks,
+                ),
+            );
+
+            return;
+        }
+
+        for (td, ts) in not_triggered.iter_mut().zip(self.trigger) {
+            *td = i64::from(ts > self.ticks);
+        }
+    }
+
+    pub fn tick_all(&mut self, current_tick: i64) -> (u8, bool) {
         // bool: Timer 4 has a special treatment, triggered information without interrupt
-        let mut int = 0;
-        let mut int4_triggered: bool = false;
+        let mut int: u8 = 0;
+        let mut not_triggered: [i64; TIMER_COUNT + AUDIO_TIMER_COUNT] =
+            [0i64; TIMER_COUNT + AUDIO_TIMER_COUNT];
 
         self.ticks = current_tick;
 
-        for id in 0..TIMER_COUNT + AUDIO_TIMER_COUNT {
-            if self.trigger[id] > self.ticks {
-                continue;
-            }
-            int |= Self::tick_timer(
-                &mut self.timer,
-                &mut self.audio_reg,
-                &mut self.triggered,
-                id,
-                current_tick,
-            );
-            self.update_timer_trigger_tick(id);
-            if id == 4 {
-                int4_triggered = true;
-            }
-        }
+        self.check_if_triggered(&mut not_triggered);
 
-        (int, int4_triggered)
+        not_triggered
+            .iter()
+            .enumerate()
+            .filter(|(_, &x)| x == 0)
+            .for_each(|(id, _)| {
+                int |= Self::tick_timer(
+                    &mut self.timer,
+                    &mut self.audio_reg,
+                    &mut self.triggered,
+                    id,
+                    current_tick,
+                );
+                self.update_timer_trigger_tick(id);
+            });
+
+        (int, not_triggered[4] == 0)
     }
 
     pub fn tick_timer(
@@ -144,7 +184,7 @@ impl Timers {
         audio_regs: &mut [AudioTimerRegisters],
         triggereds: &mut [bool],
         id: usize,
-        current_tick: u64,
+        current_tick: i64,
     ) -> u8 {
         let timer = &mut timers[id];
 
@@ -264,7 +304,7 @@ impl Timers {
 
     #[inline]
     #[must_use]
-    pub fn timer_trigger(&self, id: usize) -> u64 {
+    pub fn timer_trigger(&self, id: usize) -> i64 {
         self.timer[id].next_trigger_tick()
     }
 
