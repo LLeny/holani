@@ -384,8 +384,8 @@ impl Lynx {
         }
     }
 
-    pub fn screen_rgb(&self) -> &Vec<u8> {
-        self.mikey.video().rgb_screen()
+    pub fn screen_rgba(&self) -> &Vec<u8> {
+        self.mikey.video().rgba_screen()
     }
 
     pub fn rotation(&self) -> LNXRotation {

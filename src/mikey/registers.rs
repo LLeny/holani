@@ -89,7 +89,9 @@ pub struct MikeyRegisters {
     serctl_w: SerCtlW,
     dispctl: DispCtl,
     is_flipped: bool,
-    palette: [[u8; 3]; 16],
+    palette_r: [u8; 16],
+    palette_g: [u8; 16],
+    palette_b: [u8; 16],
     attenuation_left: [f32; 4],
     attenuation_right: [f32; 4],
 }
@@ -110,7 +112,9 @@ impl MikeyRegisters {
             serctl_w: SerCtlW::empty(),
             dispctl: DispCtl::fourbit | DispCtl::dma_enable,
             is_flipped: false,
-            palette: Default::default(),
+            palette_r: [0; 16],
+            palette_g: [0; 16],
+            palette_b: [0; 16],
             attenuation_left: [0.; 4],
             attenuation_right: [0.; 4],
         };
@@ -155,6 +159,21 @@ impl MikeyRegisters {
     }
 
     #[must_use]
+    pub fn palette_r(&self) -> &[u8; 16] {
+        &self.palette_r
+    }
+
+    #[must_use]
+    pub fn palette_g(&self) -> &[u8; 16] {
+        &self.palette_g
+    }
+
+    #[must_use]
+    pub fn palette_b(&self) -> &[u8; 16] {
+        &self.palette_b
+    }
+
+    #[must_use]
     pub fn data(&self, addr: u16) -> u8 {
         self.data[(addr - MIK_ADDR) as usize]
     }
@@ -178,15 +197,20 @@ impl MikeyRegisters {
     fn update_pen(&mut self, pen_index: u16) {
         let bluered = self.data(BLUERED0 + pen_index);
         let green = self.data(GREEN0 + pen_index);
-        self.palette[pen_index as usize][0] = (bluered & 0xf) * 16;
-        self.palette[pen_index as usize][1] = (green & 0xf) * 16;
-        self.palette[pen_index as usize][2] = (bluered >> 4) * 16;
+        self.palette_r[pen_index as usize] = (bluered & 0xf) * 16;
+        self.palette_g[pen_index as usize] = (green & 0xf) * 16;
+        self.palette_b[pen_index as usize] = (bluered >> 4) * 16;
     }
 
     #[inline]
     #[must_use]
-    pub fn get_pen(&self, pen_index: u8) -> &[u8; 3] {
-        &self.palette[pen_index as usize]
+    pub fn get_pen(&self, pen_index: u8) -> [u8; 4] {
+        [
+            self.palette_r[pen_index as usize],
+            self.palette_g[pen_index as usize],
+            self.palette_b[pen_index as usize],
+            0xFF,
+        ]
     }
 
     #[must_use]
