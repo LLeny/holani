@@ -14,8 +14,8 @@ pub struct Timer {
     control_a: u8,
     count: u8,
     control_b: u8,
-    clock_ticks: Option<u32>,
-    next_trigger_tick: i64,
+    clock_ticks: Option<u16>,
+    tick_countdown: u16,
     linked: Option<NonZeroU8>,
     is_linked: bool,
     count_enabled: bool,
@@ -33,7 +33,7 @@ impl Timer {
             count: 0,
             control_b: 0,
             clock_ticks: None,
-            next_trigger_tick: i64::MAX,
+            tick_countdown: 0,
             linked: linked_timer,
             is_linked: false,
             count_enabled: false,
@@ -98,12 +98,20 @@ impl Timer {
         self.control_b &= !CTRLB_TIMER_DONE_BIT;
     }
 
-    pub fn set_control_a(&mut self, value: u8, current_tick: i64) {
+    pub fn set_control_a(&mut self, value: u8) {
+        const TICKS_COUNT: [Option<u16>; 8] = [
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 0)), 
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 1)),
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 2)),
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 3)),
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 4)),  
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 5)),
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 6)),
+            None, // 7 (linked timer)
+        ];
+
         self.control_a = value;
-        self.clock_ticks = match self.period() {
-            7 => None,
-            v => Some(u32::from(TIMER_TICKS_COUNT) * u32::pow(2, u32::from(v))),
-        };
+        self.clock_ticks = TICKS_COUNT[self.period() as usize];
         if value & CTRLA_RESET_DONE_BIT != 0 {
             self.reset_timer_done();
             self.control_a &= !CTRLA_RESET_DONE_BIT;
@@ -114,14 +122,14 @@ impl Timer {
         self.reload_enabled = value & CTRLA_ENABLE_RELOAD_BIT != 0;
 
         if !self.is_linked && self.count_enabled {
-            self.next_trigger_tick = current_tick + i64::from(self.clock_ticks.unwrap());
+            self.tick_countdown = 1 + self.clock_ticks.unwrap();
             trace!(
                 "Timer #{} next trigger @ {}",
                 self.id,
-                self.next_trigger_tick
+                self.tick_countdown
             );
         } else {
-            self.next_trigger_tick = i64::MAX;
+            self.tick_countdown = 0;
         }
 
         trace!("Timer {self:?}");
@@ -144,15 +152,15 @@ impl Timer {
     }
 
     #[inline]
-    pub fn set_count(&mut self, value: u8, current_tick: i64) {
+    pub fn set_count(&mut self, value: u8) {
         trace!("Timer #{} count = {}.", self.id, value);
         self.count = value;
         if !self.is_linked && self.count_enabled && value != 0 {
-            self.next_trigger_tick = current_tick + i64::from(self.clock_ticks.unwrap());
+            self.tick_countdown = 1 + self.clock_ticks.unwrap();
             trace!(
                 "Timer #{} next trigger @ {}",
                 self.id,
-                self.next_trigger_tick
+                self.tick_countdown
             );
         }
     }
@@ -191,18 +199,18 @@ impl Timer {
 
     #[inline]
     #[must_use]
-    pub fn next_trigger_tick(&self) -> i64 {
-        self.next_trigger_tick
+    pub fn tick_countdown(&self) -> u16 {
+        self.tick_countdown
     }
 
     #[inline]
-    pub fn set_next_trigger_tick(&mut self, next_trigger_tick: i64) {
-        self.next_trigger_tick = next_trigger_tick + i64::from(self.clock_ticks.unwrap());
+    pub fn reset_tick_countdown(&mut self) {
+        self.tick_countdown = 1 + self.clock_ticks.unwrap();
     }
 
     #[inline]
-    pub fn disable_trigger_tick(&mut self) {
-        self.next_trigger_tick = i64::MAX;
+    pub fn disable_tick_countdown(&mut self) {
+        self.tick_countdown = 0;
     }
 
     #[inline]
@@ -219,7 +227,7 @@ impl Timer {
 
     #[inline]
     #[must_use]
-    pub fn clock_ticks(&self) -> Option<u32> {
+    pub fn clock_ticks(&self) -> Option<u16> {
         self.clock_ticks
     }
 }

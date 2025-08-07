@@ -64,9 +64,8 @@ pub enum TimerReg {
 pub struct Timers {
     timer: [Timer; TIMER_COUNT + AUDIO_TIMER_COUNT],
     audio_reg: [AudioTimerRegisters; AUDIO_TIMER_COUNT],
-    trigger: [i64; TIMER_COUNT + AUDIO_TIMER_COUNT],
+    countdown: [u16; 16], //Round up to 256 bits for SIMD
     triggered: [bool; TIMER_COUNT + AUDIO_TIMER_COUNT],
-    ticks: i64,
 }
 
 impl Timers {
@@ -87,8 +86,7 @@ impl Timers {
                 Timer::new(10, TIMER_LINKS[10], 0),
                 Timer::new(11, TIMER_LINKS[11], 0),
             ],
-            trigger: [i64::MAX; TIMER_COUNT + AUDIO_TIMER_COUNT],
-            ticks: 0,
+            countdown: [0; 16],
             audio_reg: [AudioTimerRegisters::new(); AUDIO_TIMER_COUNT],
             triggered: [false; TIMER_COUNT + AUDIO_TIMER_COUNT],
         }
@@ -114,64 +112,54 @@ impl Timers {
 
     #[inline]
     #[allow(unreachable_code)]
-    pub fn check_if_triggered(
-        &mut self,
-        not_triggered: &mut [i64; TIMER_COUNT + AUDIO_TIMER_COUNT],
-    ) {
+    pub fn check_if_triggered(&mut self, countdown_triggered: &mut [u16; 16]) {
         #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
         unsafe {
             use core::arch::x86_64::{
-                _mm256_cmpgt_epi64, _mm256_loadu_si256, _mm256_set1_epi64x, _mm256_storeu_si256,
+                _mm256_loadu_si256, _mm256_set1_epi16, _mm256_storeu_si256, _mm256_cmpeq_epi16,_mm256_subs_epi16
             };
 
-            let src1 = _mm256_loadu_si256(self.trigger[0..4].as_ptr() as *const _);
-            let src2 = _mm256_loadu_si256(self.trigger[4..8].as_ptr() as *const _);
-            let src3 = _mm256_loadu_si256(self.trigger[8..12].as_ptr() as *const _);
+            let countdowns = _mm256_loadu_si256(self.countdown.as_ptr() as *const _);
+            let ones = _mm256_set1_epi16(1);
+            let eq1 = _mm256_cmpeq_epi16(countdowns, ones);
+            let dec = _mm256_subs_epi16(countdowns, ones);
 
-            let ticks = _mm256_set1_epi64x(self.ticks);
-
-            let cmp1 = _mm256_cmpgt_epi64(src1, ticks);
-            let cmp2 = _mm256_cmpgt_epi64(src2, ticks);
-            let cmp3 = _mm256_cmpgt_epi64(src3, ticks);
-
-            _mm256_storeu_si256(not_triggered[0..4].as_mut_ptr() as *mut _, cmp1);
-            _mm256_storeu_si256(not_triggered[4..8].as_mut_ptr() as *mut _, cmp2);
-            _mm256_storeu_si256(not_triggered[8..12].as_mut_ptr() as *mut _, cmp3);
+            _mm256_storeu_si256(countdown_triggered.as_mut_ptr() as *mut _, eq1);
+            _mm256_storeu_si256(self.countdown.as_mut_ptr() as *mut _, dec);
 
             return;
         }
-
-        for (td, ts) in not_triggered.iter_mut().zip(self.trigger) {
-            *td = i64::from(ts > self.ticks);
+        for (countdown, triggered) in self.countdown[0..TIMER_COUNT + AUDIO_TIMER_COUNT]
+            .iter_mut()
+            .zip(countdown_triggered[0..TIMER_COUNT + AUDIO_TIMER_COUNT].iter_mut())
+        {
+            *triggered = u16::from(*countdown == 1);
+            *countdown = (*countdown).saturating_sub(1);
         }
     }
 
-    pub fn tick_all(&mut self, current_tick: i64) -> (u8, bool) {
+    pub fn tick_all(&mut self) -> (u8, bool) {
         // bool: Timer 4 has a special treatment, triggered information without interrupt
         let mut int: u8 = 0;
-        let mut not_triggered: [i64; TIMER_COUNT + AUDIO_TIMER_COUNT] =
-            [0i64; TIMER_COUNT + AUDIO_TIMER_COUNT];
+        let mut countdown_triggered: [u16; 16] = [0; 16];
 
-        self.ticks = current_tick;
+        self.check_if_triggered(&mut countdown_triggered);
 
-        self.check_if_triggered(&mut not_triggered);
-
-        not_triggered
+        countdown_triggered[0..TIMER_COUNT + AUDIO_TIMER_COUNT]
             .iter()
             .enumerate()
-            .filter(|(_, &x)| x == 0)
+            .filter(|(_, &x)| x != 0)
             .for_each(|(id, _)| {
                 int |= Self::tick_timer(
                     &mut self.timer,
                     &mut self.audio_reg,
                     &mut self.triggered,
                     id,
-                    current_tick,
                 );
-                self.update_timer_trigger_tick(id);
+                self.update_timer_countdown(id);
             });
 
-        (int, not_triggered[4] == 0)
+        (int, countdown_triggered[4] != 0)
     }
 
     pub fn tick_timer(
@@ -179,7 +167,6 @@ impl Timers {
         audio_regs: &mut [AudioTimerRegisters],
         triggereds: &mut [bool],
         id: usize,
-        current_tick: i64,
     ) -> u8 {
         let timer = &mut timers[id];
 
@@ -187,11 +174,11 @@ impl Timers {
             timer.set_control_b(timer.control_b() & !CTRLB_BORROW_IN_BIT);
             if !timer.count_enabled() || (is_audio!(id) && audio_regs[id - TIMER_COUNT].disabled())
             {
-                timer.disable_trigger_tick();
+                timer.disable_tick_countdown();
                 triggereds[id] = false;
                 return 0;
             }
-            timer.set_next_trigger_tick(current_tick);
+            timer.reset_tick_countdown();
         }
 
         let mut int: u8;
@@ -209,7 +196,7 @@ impl Timers {
         if let Some(lid) = timer.linked_timer() {
             let linked_id = lid.get() as usize;
             if timers[linked_id].is_linked() {
-                int |= Self::tick_timer(timers, audio_regs, triggereds, linked_id, current_tick);
+                int |= Self::tick_timer(timers, audio_regs, triggereds, linked_id);
             }
         }
 
@@ -229,11 +216,11 @@ impl Timers {
                     "Timer #{} reload 0x{:02x} next trigger @ {}.",
                     timer.id(),
                     timer.backup(),
-                    timer.next_trigger_tick()
+                    timer.tick_countdown()
                 );
                 timer.set_count_transparent(timer.backup());
             } else {
-                timer.disable_trigger_tick();
+                timer.disable_tick_countdown();
             }
             return (
                 true,
@@ -280,12 +267,12 @@ impl Timers {
                 }
             }
             TimerReg::ControlA => {
-                self.timer[index].set_control_a(v, self.ticks);
-                self.update_timer_trigger_tick(index);
+                self.timer[index].set_control_a(v);
+                self.update_timer_countdown(index);
             }
             TimerReg::Count => {
-                self.timer[index].set_count(v, self.ticks);
-                self.update_timer_trigger_tick(index);
+                self.timer[index].set_count(v);
+                self.update_timer_countdown(index);
             }
             TimerReg::ControlB => self.timer[index].set_control_b(v),
             TimerReg::Volume => self.audio_reg[index - TIMER_COUNT].set_volume(v),
@@ -299,13 +286,13 @@ impl Timers {
 
     #[inline]
     #[must_use]
-    pub fn timer_trigger(&self, id: usize) -> i64 {
-        self.timer[id].next_trigger_tick()
+    pub fn timer_countdown(&self, id: usize) -> u16 {
+        self.timer[id].tick_countdown()
     }
 
     #[inline]
-    fn update_timer_trigger_tick(&mut self, id: usize) {
-        self.trigger[id] = self.timer_trigger(id);
+    fn update_timer_countdown(&mut self, id: usize) {
+        self.countdown[id] = self.timer_countdown(id);
     }
 
     #[inline]
