@@ -15,7 +15,6 @@ pub struct Vectors {
     data_r: u8,
     ticks_to_done: i8,
     write: bool,
-    ticks: u64,
 }
 
 impl Vectors {
@@ -27,7 +26,6 @@ impl Vectors {
             data_r: 0,
             ticks_to_done: -1,
             write: false,
-            ticks: 0,
         }
     }
 
@@ -44,7 +42,7 @@ impl Vectors {
         self.ticks_to_done = VECTOR_NORMAL_READ_TICKS;
         self.addr_r = bus.addr();
         self.write = false;
-        trace!("[{}] > Peek 0x{:04x}", self.ticks, bus.addr());
+        trace!("> Peek 0x{:04x}", bus.addr());
     }
 
     pub fn poke(&mut self, bus: &Bus) {
@@ -53,8 +51,7 @@ impl Vectors {
         self.write = true;
         self.data_r = bus.data();
         trace!(
-            "[{}] > Poke 0x{:04x} = 0x{:02x}",
-            self.ticks,
+            "> Poke 0x{:04x} = 0x{:02x}",
             bus.addr(),
             bus.data()
         );
@@ -67,17 +64,16 @@ impl Vectors {
                 if self.write {
                     self.data[(self.addr_r - NMIV_ADDR) as usize] = self.data_r;
                     bus.set_status(BusStatus::PokeDone);
-                    trace!("[{}] < Poke 0x{:02x}", self.ticks, self.data_r);
+                    trace!("< Poke 0x{:02x}", self.data_r);
                 } else {
                     bus.set_data(self.data[(self.addr_r - NMIV_ADDR) as usize]);
                     bus.set_status(BusStatus::PeekDone);
-                    trace!("[{}] < Peek", self.ticks);
+                    trace!("< Peek");
                 }
                 self.ticks_to_done = -1;
             }
             _ => self.ticks_to_done -= 1,
         }
-        self.ticks += 1;
     }
     #[must_use]
     pub fn write(&self) -> bool {

@@ -52,18 +52,16 @@ pub enum SuzyTask {
 
 #[derive(Serialize, Deserialize)]
 pub struct Suzy {
-    ticks: u64,
     request_monitor: bool,
     pending_bus_request_ticks: i8,
     renderer: Renderer,
-    registers: SuzyRegisters,
+    registers: SuzyRegisters
 }
 
 impl Suzy {
     #[must_use]
     pub fn new() -> Self {
         let mut s = Self {
-            ticks: 0,
             request_monitor: true,
             pending_bus_request_ticks: -1,
             renderer: Renderer::new(),
@@ -122,7 +120,7 @@ impl Suzy {
                 self.registers.set_ir_ticks_delay(SUZY_READ_TICKS);
             }
         }
-        trace!("[{}] > Peek 0x{:04x}", self.ticks, bus.addr());
+        trace!("> Peek 0x{:04x}", bus.addr());
     }
 
     pub fn poke(&mut self, bus: &mut Bus) {
@@ -176,8 +174,7 @@ impl Suzy {
             }
         }
         trace!(
-            "[{}] > Poke 0x{:04x} 0x{:02x}",
-            self.ticks,
+            "> Poke 0x{:04x} 0x{:02x}",
             bus.addr(),
             bus.data()
         );
@@ -259,7 +256,6 @@ impl Suzy {
     }
 
     pub fn tick(&mut self, bus: &mut Bus, dma_ram: &mut Ram) {
-        self.ticks += 1;
         self.manage_bus(bus);
         if self.pending_bus_request_ticks >= 0 || self.registers.data(SUZYBUSEN) == 0 {
             return;

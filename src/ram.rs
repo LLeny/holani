@@ -15,7 +15,6 @@ pub struct Ram {
     data_r: u8,
     ticks_to_done: i8,
     write: bool,
-    ticks: u64,
 }
 
 impl Ram {
@@ -27,7 +26,6 @@ impl Ram {
             addr_r: 0,
             data_r: 0,
             write: false,
-            ticks: 0,
         };
         r.data[MMC_ADDR as usize] = 0;
         r
@@ -56,10 +54,10 @@ impl Ram {
     pub fn peek(&mut self, bus: &Bus) {
         if bus.addr() & 0xff00 == self.addr_r & 0xff00 {
             self.ticks_to_done = RAM_PAGE_READ_TICKS;
-            trace!("[{}] > Peek 0x{:04x} (page mode)", self.ticks, bus.addr());
+            trace!("Peek 0x{:04x} (page mode)", bus.addr());
         } else {
             self.ticks_to_done = RAM_NORMAL_READ_TICKS;
-            trace!("[{}] > Peek 0x{:04x} (normal mode)", self.ticks, bus.addr());
+            trace!("Peek 0x{:04x} (normal mode)", bus.addr());
         }
         self.addr_r = bus.addr();
         self.write = false;
@@ -71,8 +69,7 @@ impl Ram {
         self.write = true;
         self.data_r = bus.data();
         trace!(
-            "[{}] > Poke 0x{:04x} = 0x{:02x}",
-            self.ticks,
+            "Poke 0x{:04x} = 0x{:02x}",
             self.addr_r,
             self.data_r
         );
@@ -85,13 +82,12 @@ impl Ram {
                 if self.write {
                     self.data[self.addr_r as usize] = self.data_r;
                     bus.set_status(BusStatus::PokeDone);
-                    trace!("[{}] < Poke 0x{:02x}", self.ticks, self.data_r);
+                    trace!("< Poke 0x{:02x}", self.data_r);
                 } else {
                     bus.set_data(self.data[self.addr_r as usize]);
                     bus.set_status(BusStatus::PeekDone);
                     trace!(
-                        "[{}] < Peek 0x{:04x} -> 0x{:02x}",
-                        self.ticks,
+                        "< Peek 0x{:04x} -> 0x{:02x}",
                         self.addr_r,
                         bus.data()
                     );
@@ -100,7 +96,6 @@ impl Ram {
             }
             _ => self.ticks_to_done -= 1,
         }
-        self.ticks += 1;
     }
 
     #[inline]

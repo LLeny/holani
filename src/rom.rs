@@ -51,7 +51,6 @@ pub struct Rom {
     data: Vec<u8>,
     addr_r: u16,
     ticks_to_done: i8,
-    ticks: u64,
 }
 
 impl Default for Rom {
@@ -60,7 +59,6 @@ impl Default for Rom {
             data: FREE_BOOTROM.to_vec(),
             addr_r: 0,
             ticks_to_done: -1,
-            ticks: 0,
         }
     }
 }
@@ -107,7 +105,7 @@ impl Rom {
             self.ticks_to_done = ROM_NORMAL_READ_TICKS;
         }
         self.addr_r = bus.addr();
-        trace!("[{}] > Peek 0x{:04x}", self.ticks, self.addr_r);
+        trace!("> Peek 0x{:04x}", self.addr_r);
     }
 
     pub fn tick(&mut self, bus: &mut Bus) {
@@ -119,15 +117,13 @@ impl Rom {
                 bus.set_status(BusStatus::PeekDone);
                 self.ticks_to_done = -1;
                 trace!(
-                    "[{}] < Peek 0x{:04x} = 0x{:02x}",
-                    self.ticks,
+                    "< Peek 0x{:04x} = 0x{:02x}",
                     self.addr_r,
                     data
                 );
             }
             _ => self.ticks_to_done -= 1,
         }
-        self.ticks += 1;
     }
 
     #[must_use]

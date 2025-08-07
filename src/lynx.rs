@@ -34,7 +34,6 @@ pub struct Lynx {
     mikey: Mikey,
     vectors: Vectors,
     cart: Cartridge,
-    ticks: u64,
     bus: Bus,
     last_ir_pc: u16,
     switches_cache: Switches,
@@ -61,7 +60,6 @@ impl Lynx {
             suzy: Suzy::default(),
             mikey: Mikey::default(),
             cart: Cartridge::default(),
-            ticks: 0,
             bus: Bus::default(),
             last_ir_pc: 0,
             switches_cache: Switches::empty(),
@@ -128,8 +126,7 @@ impl Lynx {
         self.bus.set_status(BusStatus::Poke);
         self.mikey().cpu_pins().pin_on(M6502_RDY);
         trace!(
-            "[{}] > Poke 0x{:04x} = 0x{:02x}, bus:{:?}",
-            self.ticks,
+            "> Poke 0x{:04x} = 0x{:02x}, bus:{:?}",
             self.bus.addr(),
             self.bus.data(),
             self.bus
@@ -165,8 +162,7 @@ impl Lynx {
         self.bus.set_status(BusStatus::Peek);
         self.mikey().cpu_pins().pin_on(M6502_RDY);
         trace!(
-            "[{}] > Peek 0x{:04x}, bus:{:?}",
-            self.ticks,
+            "> Peek 0x{:04x}, bus:{:?}",
             self.bus.addr(),
             self.bus
         );
@@ -243,16 +239,14 @@ impl Lynx {
         self.bus.set_status(BusStatus::Peek);
         self.mikey().cpu_pins().pin_on(M6502_RDY);
         trace!(
-            "[{}] > Peek RAM 0x{:04x}, bus:{:?}",
-            self.ticks,
+            "> Peek RAM 0x{:04x}, bus:{:?}",
             self.bus.addr(),
             self.bus
         );
         self.ram.peek(&self.bus);
     }
 
-    pub fn step_instruction(&mut self) -> u64 {
-        let start_ticks = self.ticks;
+    pub fn step_instruction(&mut self) {
         loop {
             self.tick();
             let pc = self.mikey.cpu().last_ir_pc;
@@ -261,7 +255,6 @@ impl Lynx {
                 break;
             }
         }
-        self.ticks - start_ticks
     }
 
     pub fn tick(&mut self) {
@@ -296,8 +289,6 @@ impl Lynx {
         //         println!("X:{}", self.mikey().cpu().x());
         //     }
         // }
-
-        self.ticks += 1;
     }
 
     pub fn bus(&self) -> &Bus {
@@ -330,10 +321,6 @@ impl Lynx {
 
     pub fn cart(&self) -> &Cartridge {
         &self.cart
-    }
-
-    pub fn ticks(&self) -> u64 {
-        self.ticks
     }
 
     pub fn set_joystick_u8(&mut self, joy: u8) {
@@ -403,7 +390,6 @@ impl Lynx {
         self.suzy = Suzy::new();
         self.mikey.reset();
         self.cart.reset();
-        self.ticks = 0;
         self.last_ir_pc = 0;
         self.initialize();
     }
