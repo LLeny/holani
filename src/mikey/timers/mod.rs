@@ -116,7 +116,8 @@ impl Timers {
         #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
         unsafe {
             use core::arch::x86_64::{
-                _mm256_loadu_si256, _mm256_set1_epi16, _mm256_storeu_si256, _mm256_cmpeq_epi16,_mm256_subs_epi16
+                _mm256_cmpeq_epi16, _mm256_loadu_si256, _mm256_set1_epi16, _mm256_storeu_si256,
+                _mm256_subs_epi16,
             };
 
             let countdowns = _mm256_loadu_si256(self.countdown.as_ptr() as *const _);
@@ -129,6 +130,28 @@ impl Timers {
 
             return;
         }
+
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        unsafe {
+            use core::arch::aarch64::*;
+            const ONE: u16 = 1;
+
+            let countdowns = vld2q_u16(self.countdown.as_ptr());
+            let ones = vld1q_dup_u16(&ONE);
+            let eq1 = vceqq_u16(countdowns.0, ones);
+            let eq2 = vceqq_u16(countdowns.1, ones);
+            let dec1 = vqsubq_u16(countdowns.0, ones);
+            let dec2 = vqsubq_u16(countdowns.1, ones);
+
+            vst1q_u16(countdown_triggered.as_mut_ptr(), eq1);
+            vst1q_u16(countdown_triggered.as_mut_ptr().add(16 * 8), eq2);
+
+            vst1q_u16(self.countdown.as_mut_ptr(), dec1);
+            vst1q_u16(self.countdown.as_mut_ptr().add(16 * 8), dec2);
+
+            return;
+        }
+
         for (countdown, triggered) in self.countdown[0..TIMER_COUNT + AUDIO_TIMER_COUNT]
             .iter_mut()
             .zip(countdown_triggered[0..TIMER_COUNT + AUDIO_TIMER_COUNT].iter_mut())
