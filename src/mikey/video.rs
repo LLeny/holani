@@ -55,6 +55,7 @@ macro_rules! pixel {
 }
 
 impl VideoBuffer {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             rgba_buffer: vec![0; RGBA_SCREEN_BUFFER_LEN],
@@ -80,6 +81,12 @@ impl VideoBuffer {
     #[must_use]
     pub fn screen(&self) -> &Vec<u8> {
         &self.rgba_buffer
+    }
+}
+
+impl Default for VideoBuffer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -188,8 +195,6 @@ impl Video {
             let lut_b = _mm_loadu_si128(regs.palette_b().as_ptr() as *const _);
 
             for i in (0..self.display_row_index).step_by(16) {
-                use core::arch::x86_64::*;
-
                 let rgb_ptr = draw_buffer
                     .rgba_buffer
                     .as_mut_ptr()
@@ -223,10 +228,10 @@ impl Video {
             return;
         }
 
-        for i in 0..self.display_row_index {
-            let rgba = regs.get_pen(self.display_row_buffer[i]);
-            draw_buffer.push(rgba);
-        }
+        self.display_row_buffer[0..self.display_row_index]
+            .iter()
+            .map(|pix| regs.get_pen(*pix))
+            .for_each(|rgba| draw_buffer.push(rgba));
         self.display_row_index = 0;
     }
 
@@ -244,14 +249,14 @@ impl Video {
         }
     }
 
-    pub fn required_bytes(&mut self) -> Option<u16> {
+    pub fn required_bytes(&mut self) -> Option<usize> {
         if !self.is_available() {
             return None;
         }
         match self.pix_buffer_available {
             0 => Some(
-                self.draw_buffer().buffer_index as u16 / (RGBA_PIXEL_LEN as u16 * 2)
-                    + self.display_row_index as u16 / 2,
+                self.draw_buffer().buffer_index / (RGBA_PIXEL_LEN * 2)
+                    + self.display_row_index / 2,
             ),
             _ => None,
         }

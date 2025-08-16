@@ -5,6 +5,7 @@ pub mod uart;
 pub mod video;
 
 use crate::{alloc, bus, cartridge, consts, ram, rom};
+use alloc::vec::Vec;
 use bus::{Bus, BusStatus};
 use cartridge::Cartridge;
 use consts::{
@@ -71,9 +72,9 @@ pub struct Mikey {
     registers: MikeyRegisters,
     bus_owner: MikeyBusOwner,
     video: Video,
-    video_buffer_curr_addr: u16,
-    disp_addr: u16,
-    is_flipped: bool,
+    video_buffer_curr_addr: usize,
+    disp_addr: usize,
+    flipped: i8,
     bus_grant_bkup: Option<bool>,
     comlynx_cable_present: bool,
 }
@@ -91,7 +92,7 @@ impl Mikey {
             video: Video::new(),
             video_buffer_curr_addr: 0,
             disp_addr: 0,
-            is_flipped: false,
+            flipped: 1,
             bus_owner: MikeyBusOwner::Cpu,
             bus_grant_bkup: None,
             comlynx_cable_present: false,
@@ -190,17 +191,17 @@ impl Mikey {
                 }
             }
             MikeyBusOwner::RefreshAndVideo => {
-                let mut base_addr = i32::from(self.video_buffer_curr_addr);
+                
+                let mut pixs: Vec<u8> = 
+                (0..VIDEO_DMA_BUFFER_LENGTH as i32)
+                    .map(|i| dma_ram.get((i * i32::from(self.flipped) + self.video_buffer_curr_addr as i32) as u16))
+                    .collect();
 
-                let addr_move_dir = if self.is_flipped { -1i32 } else { 1i32 };
-
-                let mut b = vec![];
-                for _ in 0..VIDEO_DMA_BUFFER_LENGTH {
-                    b.push(if self.is_flipped { dma_ram.get(base_addr as u16).rotate_left(4) } else { dma_ram.get(base_addr as u16) });
-                    base_addr += addr_move_dir;
+                if self.flipped < 0 {
+                    pixs = pixs.iter().map(|b| b.rotate_right(4)).collect();
                 }
 
-                self.video.push_pix_buffer(&b);
+                self.video.push_pix_buffer(&pixs);
 
                 self.bus_owner = MikeyBusOwner::Cpu;
                 bus.set_status(BusStatus::None);
@@ -242,28 +243,30 @@ impl Mikey {
             _ => (),
         }
     
-        if bus.status() == BusStatus::None {
-            if let Some(screen_pixel_base) = self.video.required_bytes() {
-                if bus.grant() {
-                    if screen_pixel_base == 0 {
-                        self.disp_addr = self.registers.disp_addr();
-                        self.is_flipped = self.registers.is_flipped();
-                    }
-                    self.bus_owner = MikeyBusOwner::RefreshAndVideo;
-                    self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
-                    self.video_buffer_curr_addr = if self.is_flipped { self.disp_addr - screen_pixel_base } else { self.disp_addr + screen_pixel_base };
-                    trace!(
-                        "[{}] Need pixels @ 0x{:04X} (0x{:04X}+0x{:04X})",
-                        self.ticks,
-                        self.video_buffer_curr_addr,
-                        self.registers.disp_addr(),
-                        screen_pixel_base
-                    );
-                } else if !bus.request() {
-                    bus.set_request(true);
-                    trace!("Bus requested by Video");
-                    self.bus_grant_bkup = Some(false);
+        if bus.status() != BusStatus::None {
+            return;
+        }
+            
+        if let Some(screen_pixel_base) = self.video.required_bytes() {
+            if bus.grant() {
+                if screen_pixel_base == 0 {
+                    self.disp_addr = usize::from(self.registers.disp_addr());
+                    self.flipped = if self.registers.is_flipped() { -1 } else { 1 };
                 }
+                self.bus_owner = MikeyBusOwner::RefreshAndVideo;
+                self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
+                self.video_buffer_curr_addr = (self.disp_addr as isize + isize::from(self.flipped) * screen_pixel_base as isize) as usize;
+                trace!(
+                    "[{}] Need pixels @ 0x{:04X} (0x{:04X}+0x{:04X})",
+                    self.ticks,
+                    self.video_buffer_curr_addr,
+                    self.registers.disp_addr(),
+                    screen_pixel_base
+                );
+            } else if !bus.request() {
+                bus.set_request(true);
+                trace!("Bus requested by Video");
+                self.bus_grant_bkup = Some(false);
             }
         }
     }
