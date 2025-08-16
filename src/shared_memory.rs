@@ -55,6 +55,7 @@ impl Default for SharedMemory {
 
 impl Index<usize> for SharedMemory {
     type Output = u8;
+    #[allow(dangerous_implicit_autorefs)]
     fn index(&self, i: usize) -> &u8 {
         let ptr = self.data.get();
         unsafe { &(*ptr)[i] }
