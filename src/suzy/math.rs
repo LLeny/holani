@@ -24,6 +24,7 @@ pub fn divide(regs: &mut SuzyRegisters) {
     let efgh = regs.efgh();
     let np = regs.np() as u32;
 
+    regs.sprsys_r_enable_flag(SprSysR::unsafe_acces); //"BIG NOTE: Unsafe access is broken for math operations. Please reset it after every math operation or it will not be useful for sprite operations."
     regs.sprsys_r_disable_flag(SprSysR::math_warning);
     regs.sprsys_r_disable_flag(SprSysR::math_carry);
 
@@ -52,6 +53,7 @@ pub fn multiply(regs: &mut SuzyRegisters) {
     let cd = regs.tmp_cd() as u32;
     let mut efgh = ab.overflowing_mul(cd).0;
 
+    regs.sprsys_r_enable_flag(SprSysR::unsafe_acces); //"BIG NOTE: Unsafe access is broken for math operations. Please reset it after every math operation or it will not be useful for sprite operations."" 
     regs.sprsys_r_disable_flag(SprSysR::math_warning);
     regs.sprsys_r_disable_flag(SprSysR::math_carry);
     
