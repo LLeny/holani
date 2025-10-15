@@ -1,27 +1,27 @@
-use core::cell::UnsafeCell;
-use core::ops::{Index, IndexMut};
 use alloc::fmt;
 use alloc::vec::Vec;
+use core::cell::UnsafeCell;
+use core::ops::{Index, IndexMut};
 use serde::de::Visitor;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub struct SharedMemory {
-    data: UnsafeCell<Vec<u8>>
+    data: UnsafeCell<Vec<u8>>,
 }
 
 // To share the RAM with Libretro, shouldn't have concurrent accesses
 impl SharedMemory {
     pub fn new(len: usize, fill_with: u8) -> Self {
         Self {
-            data: UnsafeCell::new(vec![fill_with; len])
+            data: UnsafeCell::new(vec![fill_with; len]),
         }
     }
-    
+
     pub fn get_mut(&mut self) -> &mut Self {
         self
     }
-    
+
     pub fn fill(&mut self, v: u8) {
         let ptr = self.data.get_mut();
         (*ptr).fill(v);
@@ -47,6 +47,7 @@ impl Default for SharedMemory {
     }
 }
 
+#[allow(dangerous_implicit_autorefs)]
 impl Index<usize> for SharedMemory {
     type Output = u8;
     fn index(&self, i: usize) -> &u8 {
@@ -68,7 +69,7 @@ impl Serialize for SharedMemory {
         S: Serializer,
     {
         let ptr = self.data.get();
-        let mut seq = serializer.serialize_seq(Some(unsafe{(*ptr).len()}))?;
+        let mut seq = serializer.serialize_seq(Some(unsafe { (*ptr).len() }))?;
         unsafe {
             for e in (*ptr).iter() {
                 seq.serialize_element(&e)?;
@@ -95,10 +96,10 @@ impl<'de> Visitor<'de> for SharedMemoryVisitor {
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
-        A: serde::de::SeqAccess<'de>, 
+        A: serde::de::SeqAccess<'de>,
     {
         let mut mem = SharedMemory::default();
-        let ptr = mem.data.get_mut();        
+        let ptr = mem.data.get_mut();
         while let Some(value) = seq.next_element()? {
             (*ptr).push(value);
         }
@@ -114,3 +115,4 @@ impl<'de> Deserialize<'de> for SharedMemory {
         deserializer.deserialize_seq(SharedMemoryVisitor::new())
     }
 }
+

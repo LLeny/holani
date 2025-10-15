@@ -5,12 +5,21 @@ edition = "2021"
 rust-version = "1.82"
 
 [dependencies]
-env_logger = { version = "0.11.6", default-features = false, features = [ "auto-color", "humantime", ] }
-log = { version = "0.4", features = ["max_level_trace", "release_max_level_warn"] }
-serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
-postcard = {version = "1.1", features = ["experimental-derive"] }
-bitflags = { version = "2.6", features = ["serde"] }
-md5 = "0.7.0"
+env_logger = { version = "0.11.8", default-features = false, features = [
+  "auto-color",
+  "humantime",
+] }
+log = { version = "0.4.28", features = [
+  "max_level_trace",
+  "release_max_level_warn",
+] }
+serde = { version = "1.0", default-features = false, features = [
+  "derive",
+  "alloc",
+] }
+postcard = { version = "1.1", features = ["experimental-derive"] }
+bitflags = { version = "2.9", features = ["serde"] }
+md5 = "0.8.0"
 lazy_static = "1.5.0"
 shared_memory = { version = "0.12", optional = true }
 hashbrown = "0.15"
