@@ -41,7 +41,9 @@ pub fn divide(regs: &mut SuzyRegisters) {
         trace!("MATH: divide efgh:0x{:08x} / np:0x{:04x} -> abcd:0x{:08x}, jklm: 0x{:08x}", efgh, np, abcd, jklm);
         regs.set_abcd(abcd);
         regs.set_jklm(jklm);
-    
+        if jklm != 0 {
+            regs.sprsys_r_enable_flag(SprSysR::math_carry);
+        }
         trace!("D;0x{:08X};0x{:04X};0x{:08X};0x{:08X}\n", efgh, np, abcd, jklm);
     }
     
@@ -60,6 +62,9 @@ pub fn multiply(regs: &mut SuzyRegisters) {
     if regs.sprsys_w_is_flag_set(SprSysW::sign_math) && 0 == regs.sign_ab() + regs.tmp_sign_cd() {
         efgh ^= 0xffffffff;
         efgh = efgh.overflowing_add(1).0;
+        if efgh != 0 {
+            regs.sprsys_r_enable_flag(SprSysR::math_carry);
+        }
     }
 
     trace!("MATH: multiply ab:0x{:04x} * cd:0x{:04x} -> efgh:0x{:08x}", ab, cd, efgh);
