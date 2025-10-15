@@ -1,8 +1,8 @@
+use crate::consts::{CART_PIN_A1, CART_PIN_A7, CART_PIN_AUDIN};
 use alloc::vec::Vec;
+use bitflags::bitflags;
 use log::trace;
 use serde::{Deserialize, Serialize};
-use bitflags::bitflags;
-use crate::consts::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy)]
 pub enum Ee93cxxType {
@@ -27,23 +27,22 @@ pub enum Ee93cxxState {
     WaitForWriteAll,
 }
 
-const EE93CXX_CMD_ERASE:u16 = 0b11;
+const EE93CXX_CMD_ERASE: u16 = 0b11;
 const EE93CXX_CMD_READ: u16 = 0b10;
-const EE93CXX_CMD_WRITE:u16 = 0b01;
+const EE93CXX_CMD_WRITE: u16 = 0b01;
 
 const EE93CXX_ADR_WRAL: u16 = 0b01;
 const EE93CXX_ADR_ERAL: u16 = 0b10;
 const EE93CXX_ADR_EWDS: u16 = 0b00;
 const EE93CXX_ADR_EWEN: u16 = 0b11;
 
-
 bitflags! {
     #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
     pub struct Ee93cxxPins:u8 {
-        const DO = 0b00001000;
-        const DI = 0b00000100;
-        const CLK = 0b00000010;
-        const CS = 0b00000001;
+        const DO = 0b0000_1000;
+        const DI = 0b0000_0100;
+        const CLK = 0b0000_0010;
+        const CS = 0b0000_00011;
     }
 }
 
@@ -66,10 +65,10 @@ impl Ee93cxxConf {
             address_bits,
             data_len,
             cart_pins: 0,
-            clk_pin_mask: 1 << (CART_PIN_A1-1),
-            cs_pin_mask: 1 << (CART_PIN_A7-1),
-            di_pin_mask: 1 << (CART_PIN_AUDIN-1),
-            do_pin_mask: 1 << (CART_PIN_AUDIN-1),
+            clk_pin_mask: 1 << (CART_PIN_A1 - 1),
+            cs_pin_mask: 1 << (CART_PIN_A7 - 1),
+            di_pin_mask: 1 << (CART_PIN_AUDIN - 1),
+            do_pin_mask: 1 << (CART_PIN_AUDIN - 1),
         }
     }
 
@@ -112,15 +111,15 @@ pub struct Ee93cxx {
 fn config(t: Ee93cxxType) -> Ee93cxxConf {
     match t {
         Ee93cxxType::C46x8 => Ee93cxxConf::new(128, 6, 8),
-        Ee93cxxType::C56x8 =>  Ee93cxxConf::new(256, 8, 8),
-        Ee93cxxType::C66x8 =>  Ee93cxxConf::new(512, 8, 8),
-        Ee93cxxType::C76x8 =>  Ee93cxxConf::new(1024, 10, 8),
-        Ee93cxxType::C86x8 =>  Ee93cxxConf::new(2048, 10, 8),
+        Ee93cxxType::C56x8 => Ee93cxxConf::new(256, 8, 8),
+        Ee93cxxType::C66x8 => Ee93cxxConf::new(512, 8, 8),
+        Ee93cxxType::C76x8 => Ee93cxxConf::new(1024, 10, 8),
+        Ee93cxxType::C86x8 => Ee93cxxConf::new(2048, 10, 8),
         Ee93cxxType::C46x16 => Ee93cxxConf::new(64, 5, 16),
         Ee93cxxType::C56x16 => Ee93cxxConf::new(128, 7, 16),
         Ee93cxxType::C66x16 => Ee93cxxConf::new(256, 7, 16),
         Ee93cxxType::C76x16 => Ee93cxxConf::new(512, 9, 16),
-        Ee93cxxType::C86x16 => Ee93cxxConf::new(1024, 9, 16), 
+        Ee93cxxType::C86x16 => Ee93cxxConf::new(1024, 9, 16),
     }
 }
 
@@ -133,7 +132,7 @@ impl Ee93cxx {
             shifter: 0,
             shifter_in: 0,
             data_buffer: 0,
-            data_buffer_in: 0,            
+            data_buffer_in: 0,
             state: Ee93cxxState::WaitForStartBit,
             prev_clk: false,
             command: 0,
@@ -148,8 +147,8 @@ impl Ee93cxx {
 
         if p.contains(Ee93cxxPins::CS) {
             if !self.prev_clk && p.contains(Ee93cxxPins::CLK) {
-               self.clock(&mut p);
-            }            
+                self.clock(&mut p);
+            }
         } else {
             self.reset();
         }
@@ -166,47 +165,55 @@ impl Ee93cxx {
             }
             Ee93cxxState::WaitForCommand => {
                 self.shifter <<= 1;
-                self.shifter |= if p.contains(Ee93cxxPins::DI) {1} else {0};
+                self.shifter |= u16::from(p.contains(Ee93cxxPins::DI));
                 self.shifter_in += 1;
                 if self.shifter_in == self.config.command_len() {
-                    trace!("clock cmd:{:02b} {:016b}", (self.shifter >> self.config.address_bits) & 0b11, self.shifter);
+                    trace!(
+                        "clock cmd:{:02b} {:016b}",
+                        (self.shifter >> self.config.address_bits) & 0b11,
+                        self.shifter
+                    );
                     match (self.shifter >> self.config.address_bits) & 0b11 {
                         0 => match (self.shifter >> (self.config.address_bits - 2)) & 0b11 {
                             EE93CXX_ADR_ERAL => self.eral(),
                             EE93CXX_ADR_EWDS => self.ewds(),
                             EE93CXX_ADR_EWEN => self.ewen(),
                             EE93CXX_ADR_WRAL => self.state = Ee93cxxState::WaitForWriteAll,
-                            _ => self.reset(),  
-                        } 
+                            _ => self.reset(),
+                        },
                         EE93CXX_CMD_ERASE => self.erase(),
                         EE93CXX_CMD_READ => self.read(),
                         EE93CXX_CMD_WRITE => self.state = Ee93cxxState::WaitForWrite,
                         _ => self.reset(),
                     }
-                }                
+                }
             }
             Ee93cxxState::SendingData => {
                 self.last_output = self.data_buffer & (1 << self.data_buffer_in) != 0;
                 if self.data_buffer_in == 0 {
                     self.reset();
                 } else {
-                    self.data_buffer_in -= 1;            
+                    self.data_buffer_in -= 1;
                 }
             }
-            Ee93cxxState::WaitForWrite => if self.data_buffer_in == self.config.data_len {
-                self.write();
-            } else {
-                self.data_buffer |= if p.contains(Ee93cxxPins::DI) {1} else {0};
-                self.data_buffer <<= 1;   
-                self.data_buffer_in += 1;
-            },
-            Ee93cxxState::WaitForWriteAll => if self.data_buffer_in == self.config.data_len {
-                self.wral();
-            } else {
-                self.data_buffer |= if p.contains(Ee93cxxPins::DI) {1} else {0};
-                self.data_buffer <<= 1;   
-                self.data_buffer_in += 1;
-            },
+            Ee93cxxState::WaitForWrite => {
+                if self.data_buffer_in == self.config.data_len {
+                    self.write();
+                } else {
+                    self.data_buffer |= u32::from(p.contains(Ee93cxxPins::DI));
+                    self.data_buffer <<= 1;
+                    self.data_buffer_in += 1;
+                }
+            }
+            Ee93cxxState::WaitForWriteAll => {
+                if self.data_buffer_in == self.config.data_len {
+                    self.wral();
+                } else {
+                    self.data_buffer |= u32::from(p.contains(Ee93cxxPins::DI));
+                    self.data_buffer <<= 1;
+                    self.data_buffer_in += 1;
+                }
+            }
         }
     }
 
@@ -215,12 +222,16 @@ impl Ee93cxx {
     }
 
     fn write(&mut self) {
-        if !self.ewds {
+        if self.ewds {
+            trace!("write disabled");
+        } else {
             let addr = self.address();
             self.data[addr] = self.data_buffer as u16;
-            trace!("write 0x{:04X} with 0x{:04X}", self.address(), self.data_buffer);
-        } else {
-            trace!("write disabled");
+            trace!(
+                "write 0x{:04X} with 0x{:04X}",
+                self.address(),
+                self.data_buffer
+            );
         }
 
         self.last_output = true;
@@ -228,14 +239,14 @@ impl Ee93cxx {
     }
 
     fn wral(&mut self) {
-        if !self.ewds {
+        if self.ewds {
+            trace!("wral disabled");
+        } else {
             self.data.fill(self.data_buffer as u16);
             trace!("wral with 0x{:02X}", self.data_buffer);
-        } else {
-            trace!("wral disabled");
         }
         self.last_output = true;
-        self.reset();        
+        self.reset();
     }
 
     fn reset(&mut self) {
@@ -247,43 +258,43 @@ impl Ee93cxx {
     }
 
     fn erase(&mut self) {
-        if !self.ewds {
+        if self.ewds {
+            trace!("erase disabled");
+        } else {
             let addr = self.address();
             self.data[addr] = 0xFFFF;
             trace!("erase 0x{:04X} with 0x{:04X}", self.address(), 0xFFFF);
-        } else {
-            trace!("erase disabled");
-        }
-        self.last_output = true;
-        self.reset();        
-    }
-    
-    fn eral(&mut self) {
-        if !self.ewds {
-            self.data.fill(0xFFFF);
-            trace!("eral");
-        } else {
-            trace!("eral disabled");
         }
         self.last_output = true;
         self.reset();
     }
-    
+
+    fn eral(&mut self) {
+        if self.ewds {
+            trace!("eral disabled");
+        } else {
+            self.data.fill(0xFFFF);
+            trace!("eral");
+        }
+        self.last_output = true;
+        self.reset();
+    }
+
     fn ewds(&mut self) {
         self.ewds = true;
         trace!("ewds");
         self.reset();
     }
-    
+
     fn ewen(&mut self) {
         self.ewds = false;
         trace!("ewen");
         self.reset();
-    } 
+    }
 
     fn read(&mut self) {
         let addr = self.address();
-        self.data_buffer = self.data[addr] as u32;
+        self.data_buffer = u32::from(self.data[addr]);
         self.data_buffer_in = self.config.data_len - 1;
         trace!("read 0x{:04X}: 0x{:04X}", self.address(), self.data_buffer);
         self.state = Ee93cxxState::SendingData;

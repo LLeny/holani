@@ -1,7 +1,10 @@
+use super::bus::{Bus, BusStatus};
+use crate::{
+    consts::{MMC_ADDR, RAM_NORMAL_READ_TICKS, RAM_NORMAL_WRITE_TICKS, RAM_PAGE_READ_TICKS},
+    shared_memory::SharedMemory,
+};
 use log::trace;
-use crate::{consts::*, shared_memory::SharedMemory};
-use serde::{Serialize, Deserialize};
-use super::bus::*;
+use serde::{Deserialize, Serialize};
 
 pub const RAM_MAX: u16 = 0xffff;
 
@@ -12,10 +15,10 @@ pub struct Ram {
     data_r: u8,
     ticks_to_done: i8,
     write: bool,
-    ticks: u64,
 }
 
 impl Ram {
+    #[must_use]
     pub fn new() -> Ram {
         let mut r = Ram {
             data: SharedMemory::new((RAM_MAX as usize) + 1, 0xFF),
@@ -23,7 +26,6 @@ impl Ram {
             addr_r: 0,
             data_r: 0,
             write: false,
-            ticks: 0,
         };
         r.data[MMC_ADDR as usize] = 0;
         r
@@ -52,10 +54,10 @@ impl Ram {
     pub fn peek(&mut self, bus: &Bus) {
         if bus.addr() & 0xff00 == self.addr_r & 0xff00 {
             self.ticks_to_done = RAM_PAGE_READ_TICKS;
-            trace!("[{}] > Peek 0x{:04x} (page mode)", self.ticks, bus.addr());
+            trace!("Peek 0x{:04x} (page mode)", bus.addr());
         } else {
             self.ticks_to_done = RAM_NORMAL_READ_TICKS;
-            trace!("[{}] > Peek 0x{:04x} (normal mode)", self.ticks, bus.addr());
+            trace!("Peek 0x{:04x} (normal mode)", bus.addr());
         }
         self.addr_r = bus.addr();
         self.write = false;
@@ -66,7 +68,11 @@ impl Ram {
         self.addr_r = bus.addr();
         self.write = true;
         self.data_r = bus.data();
-        trace!("[{}] > Poke 0x{:04x} = 0x{:02x}", self.ticks, self.addr_r, self.data_r);
+        trace!(
+            "Poke 0x{:04x} = 0x{:02x}",
+            self.addr_r,
+            self.data_r
+        );
     }
 
     pub fn tick(&mut self, bus: &mut Bus) {
@@ -76,17 +82,20 @@ impl Ram {
                 if self.write {
                     self.data[self.addr_r as usize] = self.data_r;
                     bus.set_status(BusStatus::PokeDone);
-                    trace!("[{}] < Poke 0x{:02x}", self.ticks, self.data_r);
+                    trace!("< Poke 0x{:02x}", self.data_r);
                 } else {
                     bus.set_data(self.data[self.addr_r as usize]);
                     bus.set_status(BusStatus::PeekDone);
-                    trace!("[{}] < Peek 0x{:04x} -> 0x{:02x}", self.ticks, self.addr_r, bus.data());
+                    trace!(
+                        "< Peek 0x{:04x} -> 0x{:02x}",
+                        self.addr_r,
+                        bus.data()
+                    );
                 }
                 self.ticks_to_done = -1;
             }
             _ => self.ticks_to_done -= 1,
-        };
-        self.ticks += 1;
+        }
     }
 
     #[inline]

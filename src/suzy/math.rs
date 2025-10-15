@@ -1,19 +1,23 @@
 use log::trace;
 
-use crate::{consts::*, suzy::{SprSysR, SprSysW}};
 use super::SuzyRegisters;
+use crate::{
+    consts::{MATHA, MATHC, MATHE, MATHL, MATHM, SUZY_MULT_NON_SIGN_TICKS, SUZY_MULT_SIGN_TICKS},
+    suzy::{SprSysR, SprSysW},
+};
 
-pub fn convert_sign(mut v: u16) -> (u16, i8)  {
+#[must_use]
+pub fn convert_sign(mut v: u16) -> (u16, i8) {
     /* "
     In signed multiply, the hardware thinks that 8000 is a positive number. [...]
-    In signed multiply, the hardware thinks that 0 is a negative number. 
-    This is not an immediate problem for a multiply by zero, since the answer will be re-negated to the correct polarity of zero. 
+    In signed multiply, the hardware thinks that 0 is a negative number.
+    This is not an immediate problem for a multiply by zero, since the answer will be re-negated to the correct polarity of zero.
     However, since it will set the sign flag, you can not depend on the sign flag to be correct if you just load the lower byte after a multiply by zero.
     " */
     let mut sign: i8 = 1;
     if v.overflowing_sub(1).0 & 0x8000 != 0 {
-        let mut conversion: u16 = v^0xffff;
-        conversion = conversion.overflowing_add(1).0; 
+        let mut conversion: u16 = v ^ 0xffff;
+        conversion = conversion.overflowing_add(1).0;
         sign = -1;
         v = conversion;
     }
@@ -22,62 +26,64 @@ pub fn convert_sign(mut v: u16) -> (u16, i8)  {
 
 pub fn divide(regs: &mut SuzyRegisters) {
     let efgh = regs.efgh();
-    let np = regs.np() as u32;
+    let np = u32::from(regs.np());
 
     regs.sprsys_r_enable_flag(SprSysR::unsafe_acces); //"BIG NOTE: Unsafe access is broken for math operations. Please reset it after every math operation or it will not be useful for sprite operations."
     regs.sprsys_r_disable_flag(SprSysR::math_warning);
     regs.sprsys_r_disable_flag(SprSysR::math_carry);
 
-    if 0 == np { // "The number in the dividend as a result of a divide by zero is 'FFFFFFFF (BigNum)."
-        trace!("MATH: divide by zero efgh:0x{:08x} / np:0x{:04x} -> abcd:0xffffffff, jklm: 0x0", efgh, np);
-        regs.set_abcd(0xffffffff);
+    if 0 == np {
+        // "The number in the dividend as a result of a divide by zero is 'FFFFFFFF (BigNum)."
+        trace!(
+            "MATH: divide by zero efgh:0x{efgh:08x} / np:0x{np:04x} -> abcd:0xffffffff, jklm: 0x0"
+        );
+        regs.set_abcd(0xffff_ffff);
         regs.set_jklm(0);
         regs.sprsys_r_enable_flag(SprSysR::math_warning);
         regs.sprsys_r_enable_flag(SprSysR::math_carry);
-    }
-    else {
+    } else {
         let abcd = efgh / np;
         let jklm = efgh % np;
-        trace!("MATH: divide efgh:0x{:08x} / np:0x{:04x} -> abcd:0x{:08x}, jklm: 0x{:08x}", efgh, np, abcd, jklm);
+        trace!("MATH: divide efgh:0x{efgh:08x} / np:0x{np:04x} -> abcd:0x{abcd:08x}, jklm: 0x{jklm:08x}");
         regs.set_abcd(abcd);
         regs.set_jklm(jklm);
         if jklm != 0 {
             regs.sprsys_r_enable_flag(SprSysR::math_carry);
         }
-        trace!("D;0x{:08X};0x{:04X};0x{:08X};0x{:08X}\n", efgh, np, abcd, jklm);
+        trace!("D;0x{efgh:08X};0x{np:04X};0x{abcd:08X};0x{jklm:08X}\n");
     }
-    
+
     regs.sprsys_r_disable_flag(SprSysR::math_working);
 }
 
 pub fn multiply(regs: &mut SuzyRegisters) {
-    let ab = regs.ab() as u32;
-    let cd = regs.tmp_cd() as u32;
+    let ab = u32::from(regs.ab());
+    let cd = u32::from(regs.tmp_cd());
     let mut efgh = ab.overflowing_mul(cd).0;
 
     regs.sprsys_r_enable_flag(SprSysR::unsafe_acces); //"BIG NOTE: Unsafe access is broken for math operations. Please reset it after every math operation or it will not be useful for sprite operations."" 
     regs.sprsys_r_disable_flag(SprSysR::math_warning);
     regs.sprsys_r_disable_flag(SprSysR::math_carry);
-    
+
     if regs.sprsys_w_is_flag_set(SprSysW::sign_math) && 0 == regs.sign_ab() + regs.tmp_sign_cd() {
-        efgh ^= 0xffffffff;
+        efgh ^= 0xffff_ffff;
         efgh = efgh.overflowing_add(1).0;
         if efgh != 0 {
             regs.sprsys_r_enable_flag(SprSysR::math_carry);
         }
     }
 
-    trace!("MATH: multiply ab:0x{:04x} * cd:0x{:04x} -> efgh:0x{:08x}", ab, cd, efgh);
+    trace!("MATH: multiply ab:0x{ab:04x} * cd:0x{cd:04x} -> efgh:0x{efgh:08x}");
 
     regs.set_efgh(efgh);
 
     if regs.sprsys_w_is_flag_set(SprSysW::accumulate) {
-        let jklm = regs.jklm() as i64;
-        let efgh = regs.efgh() as i64;
+        let jklm = i64::from(regs.jklm());
+        let efgh = i64::from(regs.efgh());
         let r = jklm.overflowing_add(efgh).0;
 
-        trace!("MATH: multiply accumulate jklm:0x{:08x} + efgh:0x{:08x} -> jklm:0x{:08x}", jklm, efgh, r);
-        if r > u32::MAX as i64 {
+        trace!("MATH: multiply accumulate jklm:0x{jklm:08x} + efgh:0x{efgh:08x} -> jklm:0x{r:08x}");
+        if r > i64::from(u32::MAX) {
             trace!("MATH: multiply accumulate overflow");
             regs.sprsys_r_enable_flag(SprSysR::math_warning);
             regs.sprsys_r_enable_flag(SprSysR::math_carry);
@@ -85,7 +91,13 @@ pub fn multiply(regs: &mut SuzyRegisters) {
         regs.set_jklm(r as u32);
     }
 
-    trace!("M;0x{:04X};0x{:04X};0x{:08X};0x{:08X}", ab, cd, efgh, regs.jklm());
+    trace!(
+        "M;0x{:04X};0x{:04X};0x{:08X};0x{:08X}",
+        ab,
+        cd,
+        efgh,
+        regs.jklm()
+    );
 
     regs.sprsys_r_disable_flag(SprSysR::math_working);
 }
@@ -99,12 +111,10 @@ pub fn set_matha(regs: &mut SuzyRegisters) {
         regs.set_ab(v);
         regs.set_sign_ab(s);
         regs.set_task_ticks_delay(SUZY_MULT_SIGN_TICKS);
-    } 
-    else if regs.sprsys_w_is_flag_set(SprSysW::accumulate) {
+    } else if regs.sprsys_w_is_flag_set(SprSysW::accumulate) {
         regs.set_sign_ab(1);
         regs.set_task_ticks_delay(SUZY_MULT_SIGN_TICKS);
-    } 
-    else {
+    } else {
         regs.set_sign_ab(1);
         regs.set_task_ticks_delay(SUZY_MULT_NON_SIGN_TICKS);
     }
@@ -136,7 +146,8 @@ pub fn set_mathe(regs: &mut SuzyRegisters) {
     regs.reset_ir();
 }
 
-pub fn set_mathm(regs: &mut SuzyRegisters) { // "The write to 'M' will clear the accumulator overflow bit"
+pub fn set_mathm(regs: &mut SuzyRegisters) {
+    // "The write to 'M' will clear the accumulator overflow bit"
     trace!("[MATHM] = 0x{:02x}, [MATHL] = 0x00", regs.data_r());
     regs.set_data(MATHM, regs.data_r() as u8);
     regs.set_data(MATHL, 0);

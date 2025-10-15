@@ -11,7 +11,7 @@ impl From<u8> for RedeyeStatus {
     fn from(value: u8) -> Self {
         match value {
             0 => RedeyeStatus::Low,
-            _ => RedeyeStatus::High
+            _ => RedeyeStatus::High,
         }
     }
 }

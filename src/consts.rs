@@ -53,15 +53,15 @@ pub const SUZY_SPRITE_SCB_ADDITIONAL_COST: u16 = 75;
 pub const SUZY_SPRITE_VERT_ADDITIONAL_COST: u16 = 60;
 /* "
 Multiplies with out sign or accumulate take 44 ticks to complete.
-Multiplies with sign and accumulate take 54 ticks to complete. 
+Multiplies with sign and accumulate take 54 ticks to complete.
 " */
 pub const SUZY_MULT_SIGN_TICKS: u16 = 54;
 pub const SUZY_MULT_NON_SIGN_TICKS: u16 = 44;
 
 // "The CPU cycle that performed the actual read uses 15 ticks of the clock."
-pub const CART_READ_TICKS: u8 = 15-1;
+pub const CART_READ_TICKS: u8 = 15 - 1;
 // "This is a blind write from the CPU and must not be interrupted by another access to Suzy until it is finished."
-pub const CART_WRITE_TICKS: u8 = SUZY_WRITE_TICKS as u8; 
+pub const CART_WRITE_TICKS: u8 = SUZY_WRITE_TICKS as u8;
 
 pub const M6502_PIN_RW: u8 = 24;
 pub const M6502_PIN_SYNC: u8 = 25;
@@ -77,10 +77,10 @@ pub const M6502_NMI: u32 = 1 << M6502_PIN_NMI;
 pub const M6502_RDY: u32 = 1 << M6502_PIN_RDY;
 pub const M6502_RES: u32 = 1 << M6502_PIN_RES;
 
-pub const MAPCTL_VEC_BIT: u8 = 0b00001000;
-pub const MAPCTL_ROM_BIT: u8 = 0b00000100;
-pub const MAPCTL_MIK_BIT: u8 = 0b00000010;
-pub const MAPCTL_SUZ_BIT: u8 = 0b00000001;
+pub const MAPCTL_VEC_BIT: u8 = 0b0000_1000;
+pub const MAPCTL_ROM_BIT: u8 = 0b0000_0100;
+pub const MAPCTL_MIK_BIT: u8 = 0b0000_0010;
+pub const MAPCTL_SUZ_BIT: u8 = 0b0000_0001;
 
 pub const TIM0BKUP: u16 = 0xfd00;
 pub const TIM0CTLA: u16 = 0xfd01;
@@ -147,10 +147,10 @@ pub const AUD3CTL: u16 = 0xfd3d;
 pub const AUD3COUNT: u16 = 0xfd3e;
 pub const AUD3MISC: u16 = 0xfd3f;
 pub const ATTEN_A: u16 = 0xFD40;
-pub const ATTEN_B: u16 =  0xFD41;
-pub const ATTEN_C: u16 =  0xFD42;
-pub const ATTEN_D: u16 =  0xFD43;
-pub const MPAN: u16 =  0xFD44;
+pub const ATTEN_B: u16 = 0xFD41;
+pub const ATTEN_C: u16 = 0xFD42;
+pub const ATTEN_D: u16 = 0xFD43;
+pub const MPAN: u16 = 0xFD44;
 pub const MSTEREO: u16 = 0xfd50;
 pub const INTRST: u16 = 0xfd80;
 pub const INTSET: u16 = 0xfd81;
@@ -207,14 +207,18 @@ pub const BLUEREDD: u16 = 0xfdbd;
 pub const BLUEREDE: u16 = 0xfdbe;
 pub const BLUEREDF: u16 = 0xfdbf;
 
-pub const IODAT_CAD: u8 = 0b00000010;
-pub const IODAT_AUDIN: u8 = 0b00010000;
-pub const SYSCTL1_CAS: u8 = 0b00000001;
-pub const SYSCTL1_POWER: u8 = 0b00000010;
+pub const IODAT_AUDIN: u8 = 0b0001_0000;
+pub const IODAT_REST: u8 = 0b0000_1000;
+pub const IODAT_NOEXP: u8 = 0b0000_0100;
+pub const IODAT_CAD: u8 = 0b0000_0010;
+pub const IODAT_EXTPW: u8 = 0b0000_0001;
 
-pub const INT_TIMER0: u8 = 0b00000001;
-pub const INT_TIMER2: u8 = 0b00000100;
-pub const INT_TIMER4: u8 = 0b00010000;
+pub const SYSCTL1_CAS: u8 = 0b0000_0001;
+pub const SYSCTL1_POWER: u8 = 0b0000_0010;
+
+pub const INT_TIMER0: u8 = 0b0000_0001;
+pub const INT_TIMER2: u8 = 0b0000_0100;
+pub const INT_TIMER4: u8 = 0b0001_0000;
 
 pub const CART_PIN_D3: u32 = 1;
 pub const CART_PIN_D2: u32 = 2;
@@ -322,68 +326,68 @@ pub const SWITCHES: u16 = 0xFCB1; // "Read Other Switches (R)"
 pub const RCART0: u16 = 0xFCB2; // RCART(R/W)
 pub const RCART1: u16 = 0xFCB3; // RCART(R/W)
 
-pub const SPRSYS_SIGN_MATH: u8 = 0b10000000;
-pub const SPRSYS_ACCUMULATE: u8 = 0b01000000;
-pub const SPRSYS_DONT_COLLIDE: u8 = 0b00100000;
-pub const SPRSYS_VSTRETCH: u8 = 0b00010000;
-pub const SPRSYS_LEFTHAND: u8 = 0b00001000;
-pub const SPRSYS_CLEAR_UNSAFE: u8 = 0b00000100;
-pub const SPRSYS_STOP_CURRENT_SPRITE: u8 = 0b00000010;
+pub const SPRSYS_SIGN_MATH: u8 = 0b1000_0000;
+pub const SPRSYS_ACCUMULATE: u8 = 0b0100_0000;
+pub const SPRSYS_DONT_COLLIDE: u8 = 0b0010_0000;
+pub const SPRSYS_VSTRETCH: u8 = 0b0001_0000;
+pub const SPRSYS_LEFTHAND: u8 = 0b0000_1000;
+pub const SPRSYS_CLEAR_UNSAFE: u8 = 0b0000_0100;
+pub const SPRSYS_STOP_CURRENT_SPRITE: u8 = 0b0000_0010;
 
-pub const SPRSYS_MATH_IN_PROGRESS: u8 = 0b10000000;
-pub const SPRSYS_MATHBIT: u8 = 0b01000000;
-pub const SPRSYS_LAST_CARRY: u8 = 0b00100000;
-pub const SPRSYS_UNSAFE_ACCESS: u8 = 0b00000100;
-pub const SPRSYS_SPRITE_IN_PROGRESS: u8 = 0b00000001;
+pub const SPRSYS_MATH_IN_PROGRESS: u8 = 0b1000_0000;
+pub const SPRSYS_MATHBIT: u8 = 0b0100_0000;
+pub const SPRSYS_LAST_CARRY: u8 = 0b0010_0000;
+pub const SPRSYS_UNSAFE_ACCESS: u8 = 0b0000_0100;
+pub const SPRSYS_SPRITE_IN_PROGRESS: u8 = 0b0000_0001;
 
-pub const SPRCTL1_LITERAL           : u8 = 0b10000000;
-pub const SPRCTL1_ALGO_3            : u8 = 0b01000000;
-pub const SPRCTL1_RELOAD_HVST       : u8 = 0b00110000;
-pub const SPRCTL1_RELOAD_HVS        : u8 = 0b00100000;
-pub const SPRCTL1_RELOAD_HV         : u8 = 0b00010000;
-pub const SPRCTL1_REUSE_PALETTE     : u8 = 0b00001000;
-pub const SPRCTL1_SKIP_SPRITE       : u8 = 0b00000100;
-pub const SPRCTL1_DRAW_UP           : u8 = 0b00000010;
-pub const SPRCTL1_DRAW_LEFT         : u8 = 0b00000001;
-pub const SPRCTL1_DRAW_QUAD         : u8 = 0b00000011;
+pub const SPRCTL1_LITERAL: u8 = 0b1000_0000;
+pub const SPRCTL1_ALGO_3: u8 = 0b0100_0000;
+pub const SPRCTL1_RELOAD_HVST: u8 = 0b0011_0000;
+pub const SPRCTL1_RELOAD_HVS: u8 = 0b0010_0000;
+pub const SPRCTL1_RELOAD_HV: u8 = 0b0001_0000;
+pub const SPRCTL1_REUSE_PALETTE: u8 = 0b0000_1000;
+pub const SPRCTL1_SKIP_SPRITE: u8 = 0b0000_0100;
+pub const SPRCTL1_DRAW_UP: u8 = 0b0000_0010;
+pub const SPRCTL1_DRAW_LEFT: u8 = 0b0000_0001;
+pub const SPRCTL1_DRAW_QUAD: u8 = 0b0000_0011;
 
-pub const SPRCTL0_BPP               : u8 = 0b11000000;
-pub const SPRCTL0_HFLIP             : u8 = 0b00100000;
-pub const SPRCTL0_VFLIP             : u8 = 0b00010000;
-pub const SPRCTL0_SPR_TYPE          : u8 = 0b00000111;
+pub const SPRCTL0_BPP: u8 = 0b1100_0000;
+pub const SPRCTL0_HFLIP: u8 = 0b0010_0000;
+pub const SPRCTL0_VFLIP: u8 = 0b0001_0000;
+pub const SPRCTL0_SPR_TYPE: u8 = 0b0000_0111;
 
-pub const SPRCOLL_DONT_COLLIDE      : u8 = 0b00100000;
-pub const SPRCOLL_NUMBER            : u8 = 0b00001111;
+pub const SPRCOLL_DONT_COLLIDE: u8 = 0b0010_0000;
+pub const SPRCOLL_NUMBER: u8 = 0b0000_1111;
 
-pub const SPRGO_GO                  : u8 = 0b00000001;
-pub const SPRGO_EVERON              : u8 = 0b00000100;
+pub const SPRGO_GO: u8 = 0b0000_0001;
+pub const SPRGO_EVERON: u8 = 0b0000_0100;
 
-pub const R_SPRCTL0    : u16 = 0;
-pub const R_SPRCTL1    : u16 = 1;
-pub const R_SPRCOLL    : u16 = 2;
-pub const R_SCBNEXTL   : u16 = 3;
-pub const R_SCBNEXTH   : u16 = 4;
-pub const R_SPRDATAL   : u16 = 5;
-pub const R_SPRDATAH   : u16 = 6;
-pub const R_HPOSL      : u16 = 7;
-pub const R_HPOSH      : u16 = 8;
-pub const R_VPOSL      : u16 = 9;
-pub const R_VPOSH      : u16 = 10;
-pub const R_HSIZEL     : u16 = 11;
-pub const R_HSIZEH     : u16 = 12;
-pub const R_VSIZEL     : u16 = 13;
-pub const R_VSIZEH     : u16 = 14;
-pub const R_STRETCHL   : u16 = 15;
-pub const R_STRETCHH   : u16 = 16;
-pub const R_TILTL      : u16 = 17;
-pub const R_TILTH      : u16 = 18;
-pub const R_PALETTE_00 : u16 = 19;
-pub const R_PALETTE_01 : u16 = 20;
-pub const R_PALETTE_02 : u16 = 21;
-pub const R_PALETTE_03 : u16 = 22;
-pub const R_PALETTE_04 : u16 = 23;
-pub const R_PALETTE_05 : u16 = 24;
-pub const R_PALETTE_06 : u16 = 25;
-pub const R_PALETTE_07 : u16 = 26;
+pub const R_SPRCTL0: u16 = 0;
+pub const R_SPRCTL1: u16 = 1;
+pub const R_SPRCOLL: u16 = 2;
+pub const R_SCBNEXTL: u16 = 3;
+pub const R_SCBNEXTH: u16 = 4;
+pub const R_SPRDATAL: u16 = 5;
+pub const R_SPRDATAH: u16 = 6;
+pub const R_HPOSL: u16 = 7;
+pub const R_HPOSH: u16 = 8;
+pub const R_VPOSL: u16 = 9;
+pub const R_VPOSH: u16 = 10;
+pub const R_HSIZEL: u16 = 11;
+pub const R_HSIZEH: u16 = 12;
+pub const R_VSIZEL: u16 = 13;
+pub const R_VSIZEH: u16 = 14;
+pub const R_STRETCHL: u16 = 15;
+pub const R_STRETCHH: u16 = 16;
+pub const R_TILTL: u16 = 17;
+pub const R_TILTH: u16 = 18;
+pub const R_PALETTE_00: u16 = 19;
+pub const R_PALETTE_01: u16 = 20;
+pub const R_PALETTE_02: u16 = 21;
+pub const R_PALETTE_03: u16 = 22;
+pub const R_PALETTE_04: u16 = 23;
+pub const R_PALETTE_05: u16 = 24;
+pub const R_PALETTE_06: u16 = 25;
+pub const R_PALETTE_07: u16 = 26;
 
-pub const LINE_END : u32 = 0x80;
+pub const LINE_END: u32 = 0x80;

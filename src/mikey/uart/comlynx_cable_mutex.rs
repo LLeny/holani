@@ -1,23 +1,30 @@
 use alloc::{fmt, sync::Arc};
 use parking_lot::Mutex;
 use redeye_status::RedeyeStatus;
-use serde::{de::{self, Visitor}, Deserializer, Serializer};
+use serde::{
+    de::{self, Visitor},
+    Deserializer, Serializer,
+};
 
-use super::*;
+use super::{alloc, redeye_status, Deserialize, Serialize};
 
 pub struct ComlynxCable {
     redeye_pin: Arc<Mutex<RedeyeStatus>>,
 }
 
 impl ComlynxCable {
+    #[must_use]
     pub fn new(cable: Option<Arc<Mutex<RedeyeStatus>>>) -> Self {
         if let Some(redeye_pin) = cable {
             Self { redeye_pin }
         } else {
-            Self { redeye_pin: Arc::new(Mutex::new(RedeyeStatus::High)) }
-        }        
+            Self {
+                redeye_pin: Arc::new(Mutex::new(RedeyeStatus::High)),
+            }
+        }
     }
 
+    #[must_use]
     pub fn status(&self) -> RedeyeStatus {
         *self.redeye_pin.lock()
     }
@@ -35,8 +42,8 @@ impl Default for ComlynxCable {
 
 impl Clone for ComlynxCable {
     fn clone(&self) -> Self {
-        Self { 
-            redeye_pin: self.redeye_pin.clone()
+        Self {
+            redeye_pin: self.redeye_pin.clone(),
         }
     }
 }
@@ -59,7 +66,7 @@ impl ComlynxCableVisitor {
     }
 }
 
-impl<'de> Visitor<'de> for ComlynxCableVisitor {
+impl Visitor<'_> for ComlynxCableVisitor {
     type Value = ComlynxCable;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

@@ -12,6 +12,7 @@ pub struct SharedMemory {
 
 // To share the RAM with Libretro, shouldn't have concurrent accesses
 impl SharedMemory {
+    #[must_use]
     pub fn new(len: usize, fill_with: u8) -> Self {
         Self {
             data: UnsafeCell::new(vec![fill_with; len]),
@@ -39,6 +40,11 @@ impl SharedMemory {
         let ptr = self.data.get();
         unsafe { &mut (*ptr) }
     }
+
+    pub unsafe fn as_slice(&self) -> &[u8] {
+        let ptr = self.data.get();
+        unsafe { &(*ptr) }
+    }
 }
 
 impl Default for SharedMemory {
@@ -50,6 +56,7 @@ impl Default for SharedMemory {
 #[allow(dangerous_implicit_autorefs)]
 impl Index<usize> for SharedMemory {
     type Output = u8;
+    #[allow(dangerous_implicit_autorefs)]
     fn index(&self, i: usize) -> &u8 {
         let ptr = self.data.get();
         unsafe { &(*ptr)[i] }
@@ -71,7 +78,7 @@ impl Serialize for SharedMemory {
         let ptr = self.data.get();
         let mut seq = serializer.serialize_seq(Some(unsafe { (*ptr).len() }))?;
         unsafe {
-            for e in (*ptr).iter() {
+            for e in &(*ptr) {
                 seq.serialize_element(&e)?;
             }
         }

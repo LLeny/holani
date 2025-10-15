@@ -28,6 +28,7 @@ pub struct Bus {
 }
 
 impl Bus {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: 0,
@@ -37,52 +38,57 @@ impl Bus {
             grant: true,
         }
     }
-    
+
     #[inline]
+    #[must_use]
     pub fn data(&self) -> u8 {
         self.data
     }
-    
+
     #[inline]
+    #[must_use]
     pub fn addr(&self) -> u16 {
         self.addr
     }
-    
+
     #[inline]
+    #[must_use]
     pub fn status(&self) -> BusStatus {
         self.status
     }
-    
+
     #[inline]
+    #[must_use]
     pub fn request(&self) -> bool {
         self.request
     }
-    
+
     #[inline]
+    #[must_use]
     pub fn grant(&self) -> bool {
         self.grant
     }
-    
+
     #[inline]
     pub fn set_data(&mut self, data: u8) {
         self.data = data;
     }
-    
+
     #[inline]
     pub fn set_addr(&mut self, addr: u16) {
         self.addr = addr;
     }
-    
+
     #[inline]
     pub fn set_status(&mut self, status: BusStatus) {
         self.status = status;
     }
-    
+
     #[inline]
     pub fn set_request(&mut self, request: bool) {
         self.request = request;
     }
-    
+
     #[inline]
     pub fn set_grant(&mut self, grant: bool) {
         self.grant = grant;
@@ -97,6 +103,10 @@ impl Default for Bus {
 
 impl core::fmt::Debug for Bus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{{ addr:{:04x} data:{:04x} status:{:?} request:{:?} grant:{:?} }}", self.addr, self.data, self.status, self.request, self.grant)
+        write!(
+            f,
+            "{{ addr:{:04x} data:{:04x} status:{:?} request:{:?} grant:{:?} }}",
+            self.addr, self.data, self.status, self.request, self.grant
+        )
     }
 }
