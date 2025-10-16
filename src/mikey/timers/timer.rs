@@ -1,5 +1,7 @@
 use alloc::fmt;
 
+use crate::mikey::timers::CTRLB_BORROW_IN_BIT;
+
 use super::{
     alloc, trace, Deserialize, NonZeroU8, Serialize, CTRLA_ENABLE_COUNT_BIT,
     CTRLA_ENABLE_RELOAD_BIT, CTRLA_INTERRUPT_BIT, CTRLA_PERIOD_BIT, CTRLA_RESET_DONE_BIT,
@@ -114,11 +116,10 @@ impl Timer {
         self.clock_ticks = TICKS_COUNT[self.period() as usize];
         if value & CTRLA_RESET_DONE_BIT != 0 {
             self.reset_timer_done();
-            self.control_a &= !CTRLA_RESET_DONE_BIT;
         }
 
         self.is_linked = self.period() == 7;
-        self.count_enabled = value & CTRLA_ENABLE_COUNT_BIT != 0;
+        self.count_enabled = self.control_a & CTRLA_ENABLE_COUNT_BIT != 0;
         self.reload_enabled = value & CTRLA_ENABLE_RELOAD_BIT != 0;
 
         if !self.is_linked && self.count_enabled {
@@ -142,7 +143,18 @@ impl Timer {
     #[inline]
     pub fn set_control_b(&mut self, value: u8) {
         trace!("Timer #{} ctrl_b = {}.", self.id, value);
-        self.control_b = value;
+        if self.control_b & CTRLB_BORROW_IN_BIT == 0 && value & CTRLB_BORROW_IN_BIT != 0 && self.count > 0 {
+            self.count -= 1;
+        }
+        self.control_b = value & 0xF8;
+    }
+
+    pub fn clear_borrows(&mut self) {
+        self.control_b &= 0xFC;
+    }
+
+    pub fn set_control_b_flags(&mut self, flags: u8) {
+        self.control_b |= flags;
     }
 
     #[inline]
@@ -190,7 +202,7 @@ impl Timer {
 
     #[inline]
     pub fn done(&mut self) -> u8 {
-        self.set_control_b(self.control_b() | CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
+        self.set_control_b_flags(CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
         if self.interrupt_enabled() {
             return self.int();
         }

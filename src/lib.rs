@@ -36,9 +36,8 @@ pub fn serialize(lynx: &lynx::Lynx, data: &mut [u8]) -> Result<(), &'static str>
 /// - The deserialization operation fails due to invalid data format
 /// - The postcard deserialization encounters an error
 pub fn deserialize(data: &[u8], source: &lynx::Lynx) -> Result<lynx::Lynx, &'static str> {
-    let mut lynx = match postcard::from_bytes::<lynx::Lynx>(data) {
-        Err(_) => return Err("Deserialization error"),
-        Ok(l) => l,
+    let Ok(mut lynx) = postcard::from_bytes::<lynx::Lynx>(data) else {
+        return Err("Deserialization error");
     };
     lynx.cart_mut().copy_from(source.cart());
     Ok(lynx)

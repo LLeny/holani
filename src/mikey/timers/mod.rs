@@ -193,8 +193,18 @@ impl Timers {
     ) -> u8 {
         let timer = &mut timers[id];
 
+        timer.clear_borrows();
+
+        if timer.control_a() & CTRLA_RESET_DONE_BIT != 0 {
+            timer.reset_timer_done();
+        }
+
+        if !timer.reload_enabled() && timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
+            triggereds[id] = false;
+            return 0;
+        }
+
         if !timer.is_linked() {
-            timer.set_control_b(timer.control_b() & !CTRLB_BORROW_IN_BIT);
             if !timer.count_enabled() || (is_audio!(id) && audio_regs[id - TIMER_COUNT].disabled())
             {
                 timer.disable_tick_countdown();
@@ -219,6 +229,7 @@ impl Timers {
         if let Some(lid) = timer.linked_timer() {
             let linked_id = lid.get() as usize;
             if timers[linked_id].is_linked() {
+                trace!("Timer #{id}, trigger linked timer #{linked_id}");
                 int |= Self::tick_timer(timers, audio_regs, triggereds, linked_id);
             }
         }
@@ -230,7 +241,7 @@ impl Timers {
         timer: &mut Timer,
         audio: Option<&mut AudioTimerRegisters>,
     ) -> (bool, u8) {
-        timer.set_control_b((timer.control_b() & !CTRLB_BORROW_OUT_BIT) | CTRLB_BORROW_IN_BIT);
+        timer.set_control_b_flags(CTRLB_BORROW_IN_BIT);
         let count = timer.count();
 
         if count == 0 {
@@ -242,7 +253,7 @@ impl Timers {
                     timer.tick_countdown()
                 );
                 timer.set_count_transparent(timer.backup());
-            } else {
+            } else if timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
                 timer.disable_tick_countdown();
             }
             return (

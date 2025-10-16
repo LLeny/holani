@@ -126,8 +126,7 @@ impl AudioTimerRegisters {
     }
 
     pub fn done(&mut self, timer: &mut Timer) -> u8 {
-        timer.set_control_b(timer.control_b() | CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
-
+        timer.set_control_b_flags(CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
         /* "
         The inversion of the output of the gate is used as the data input to the shift register. [...]
         This same inverted output is taken from the exclusive or gate and sent to the waveshape selector. [...]
