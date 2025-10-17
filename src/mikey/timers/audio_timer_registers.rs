@@ -147,8 +147,8 @@ impl AudioTimerRegisters {
             }
         } else {
             match par {
-                0 => volume,
-                _ => -volume,
+                0 => -volume,
+                _ => volume,
             }
         });
 
