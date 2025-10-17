@@ -142,8 +142,8 @@ impl AudioTimerRegisters {
 
         self.set_output(if self.integrate(timer) {
             match par {
-                0 => self.output().saturating_add(volume),
-                _ => self.output().saturating_sub(volume),
+                0 => self.output().saturating_sub(volume),
+                _ => self.output().saturating_add(volume),
             }
         } else {
             match par {
