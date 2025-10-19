@@ -1,12 +1,10 @@
-use alloc::fmt;
-
-use crate::mikey::timers::CTRLB_BORROW_IN_BIT;
-
 use super::{
     alloc, trace, Deserialize, NonZeroU8, Serialize, CTRLA_ENABLE_COUNT_BIT,
     CTRLA_ENABLE_RELOAD_BIT, CTRLA_INTERRUPT_BIT, CTRLA_PERIOD_BIT, CTRLA_RESET_DONE_BIT,
-    CTRLB_BORROW_OUT_BIT, CTRLB_TIMER_DONE_BIT, TIMER_TICKS_COUNT,
+    CTRLB_TIMER_DONE_BIT, TIMER_TICKS_COUNT,
 };
+use crate::mikey::timers::{CTRLB_BORROW_IN_BIT, CTRLB_BORROW_OUT_BIT, CTRLB_LAST_CLOCK_BIT};
+use alloc::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Timer {
@@ -95,6 +93,14 @@ impl Timer {
         self.control_b
     }
 
+    pub fn reset_last_clock(&mut self) {
+        self.control_b &= !CTRLB_LAST_CLOCK_BIT;
+    }
+
+    pub fn set_last_clock(&mut self) {
+        self.control_b |= CTRLB_LAST_CLOCK_BIT;
+    }
+
     #[inline]
     pub fn reset_timer_done(&mut self) {
         self.control_b &= !CTRLB_TIMER_DONE_BIT;
@@ -102,11 +108,11 @@ impl Timer {
 
     pub fn set_control_a(&mut self, value: u8) {
         const TICKS_COUNT: [Option<u16>; 8] = [
-            Some(TIMER_TICKS_COUNT * u16::pow(2, 0)), 
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 0)),
             Some(TIMER_TICKS_COUNT * u16::pow(2, 1)),
             Some(TIMER_TICKS_COUNT * u16::pow(2, 2)),
             Some(TIMER_TICKS_COUNT * u16::pow(2, 3)),
-            Some(TIMER_TICKS_COUNT * u16::pow(2, 4)),  
+            Some(TIMER_TICKS_COUNT * u16::pow(2, 4)),
             Some(TIMER_TICKS_COUNT * u16::pow(2, 5)),
             Some(TIMER_TICKS_COUNT * u16::pow(2, 6)),
             None, // 7 (linked timer)
@@ -124,11 +130,7 @@ impl Timer {
 
         if !self.is_linked && self.count_enabled {
             self.tick_countdown = 1 + self.clock_ticks.unwrap();
-            trace!(
-                "Timer #{} next trigger @ {}",
-                self.id,
-                self.tick_countdown
-            );
+            trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
         } else {
             self.tick_countdown = 0;
         }
@@ -143,14 +145,17 @@ impl Timer {
     #[inline]
     pub fn set_control_b(&mut self, value: u8) {
         trace!("Timer #{} ctrl_b = {}.", self.id, value);
-        if self.control_b & CTRLB_BORROW_IN_BIT == 0 && value & CTRLB_BORROW_IN_BIT != 0 && self.count > 0 {
+        if self.control_b & CTRLB_BORROW_IN_BIT == 0
+            && value & CTRLB_BORROW_IN_BIT != 0
+            && self.count > 0
+        {
             self.count -= 1;
         }
         self.control_b = value & 0xF8;
     }
 
     pub fn clear_borrows(&mut self) {
-        self.control_b &= 0xFC;
+        self.control_b &= !(CTRLB_BORROW_IN_BIT | CTRLB_BORROW_OUT_BIT);
     }
 
     pub fn set_control_b_flags(&mut self, flags: u8) {
@@ -169,11 +174,7 @@ impl Timer {
         self.count = value;
         if !self.is_linked && self.count_enabled && value != 0 {
             self.tick_countdown = 1 + self.clock_ticks.unwrap();
-            trace!(
-                "Timer #{} next trigger @ {}",
-                self.id,
-                self.tick_countdown
-            );
+            trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
         }
     }
 
@@ -202,7 +203,6 @@ impl Timer {
 
     #[inline]
     pub fn done(&mut self) -> u8 {
-        self.set_control_b_flags(CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
         if self.interrupt_enabled() {
             return self.int();
         }

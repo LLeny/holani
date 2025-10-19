@@ -37,7 +37,6 @@ const CTRLA_ENABLE_RELOAD_BIT: u8 = 0b0001_0000;
 const CTRLA_ENABLE_COUNT_BIT: u8 = 0b0000_1000;
 const CTRLA_PERIOD_BIT: u8 = 0b0000_0111;
 const CTRLB_TIMER_DONE_BIT: u8 = 0b0000_1000;
-#[allow(dead_code)]
 const CTRLB_LAST_CLOCK_BIT: u8 = 0b0000_0100;
 const CTRLB_BORROW_IN_BIT: u8 = 0b0000_0010;
 const CTRLB_BORROW_OUT_BIT: u8 = 0b0000_0001;
@@ -241,9 +240,7 @@ impl Timers {
         timer: &mut Timer,
         audio: Option<&mut AudioTimerRegisters>,
     ) -> (bool, u8) {
-        timer.set_control_b_flags(CTRLB_BORROW_IN_BIT);
         let count = timer.count();
-
         if count == 0 {
             if timer.reload_enabled() {
                 trace!(
@@ -253,9 +250,13 @@ impl Timers {
                     timer.tick_countdown()
                 );
                 timer.set_count_transparent(timer.backup());
-            } else if timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
-                timer.disable_tick_countdown();
+            } else {
+                timer.set_last_clock();
+                if timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
+                    timer.disable_tick_countdown();
+                }
             }
+            timer.set_control_b_flags(CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
             return (
                 true,
                 if let Some(aud) = audio {
@@ -266,6 +267,8 @@ impl Timers {
             );
         }
         timer.set_count_transparent(count - 1);
+        timer.set_control_b_flags(CTRLB_BORROW_IN_BIT);
+        timer.reset_last_clock();
         (false, 0)
     }
 
