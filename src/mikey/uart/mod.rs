@@ -2,7 +2,7 @@ pub mod redeye_status;
 
 #[cfg(not(feature = "comlynx_shared_memory"))]
 pub mod comlynx_cable_mutex;
-use alloc::vec::Vec;
+use alloc::{collections::vec_deque::VecDeque, vec::Vec};
 #[cfg(not(feature = "comlynx_shared_memory"))]
 use comlynx_cable_mutex::ComlynxCable;
 #[cfg(feature = "comlynx_shared_memory")]
@@ -21,11 +21,13 @@ macro_rules! bool_parity {
     };
 }
 
+const RX_BUFFER_LEN: usize = 2;
+const GENERATOR_DELAY: u8 = 8;
 #[derive(Serialize, Deserialize)]
 pub struct Uart {
     receive_register_len: u8,
     receive_register_buffer: u8,
-    receive_register: Option<u8>,
+    receive_register: VecDeque<u8>,
     break_count: u64,
     transmit_register: Vec<RedeyeStatus>,
     transmit_holding_register: Option<u8>,
@@ -44,9 +46,9 @@ impl Uart {
     pub fn new() -> Self {
         Self {
             receive_register_len: 0,
-            receive_register: None,
+            receive_register: VecDeque::new(),
             receive_register_buffer: 0,
-            generator_delay: 8,
+            generator_delay: GENERATOR_DELAY,
             break_count: 0,
             transmit_register: vec![],
             transmit_holding_register: None,
@@ -66,7 +68,7 @@ impl Uart {
 
     pub fn reset(&mut self) {
         self.receive_register_len = 0;
-        self.receive_register = None;
+        self.receive_register.clear();
         self.receive_register_buffer = 0;
         self.break_count = 0;
         self.transmit_register.clear();
@@ -79,7 +81,7 @@ impl Uart {
         CLOCK4 / (TIMER4 + 1) / 8
         " */
         if self.generator_delay == 0 {
-            self.generator_delay = 8;
+            self.generator_delay = GENERATOR_DELAY;
         } else {
             self.generator_delay -= 1;
             return false;
@@ -222,11 +224,11 @@ impl Uart {
                     regs.serctl_r_enable_flag(SerCtlR::frame_err);
                 }
                 trace!("Received 0x{:02X}", self.receive_register_buffer);
-                if self.receive_register.is_some() {
+                if self.receive_register.len() >= RX_BUFFER_LEN {
                     trace!("Overrun");
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
                 } else {
-                    self.receive_register = Some(self.receive_register_buffer);
+                    self.receive_register.push_back(self.receive_register_buffer);
                     regs.serctl_r_enable_flag(SerCtlR::rx_rdy);
                 }
                 self.receive_register_len = 0;
@@ -237,7 +239,7 @@ impl Uart {
 
     pub fn get_data(&mut self, regs: &mut MikeyRegisters) -> u8 {
         regs.serctl_r_disable_flag(SerCtlR::rx_rdy);
-        match self.receive_register.take() {
+        match self.receive_register.pop_front() {
             None => 0,
             Some(data) => {
                 trace!("Get 0x{data:02X}");
