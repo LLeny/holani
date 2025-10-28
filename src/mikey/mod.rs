@@ -137,9 +137,9 @@ impl Mikey {
     pub fn tick(&mut self, bus: &mut Bus, cart: &mut Cartridge, dma_ram: &Ram) {
         self.ticks += 1;
 
-        let (mut int, int4_triggered) = self.timers.tick_all();
+        let (mut int, int4_done) = self.timers.tick_all();
 
-        if int4_triggered {
+        if int4_done {
             // "The interrupt bit for timer 4 (UART baud rate) is driven by receiver or transmitter ready bit of the UART."
             if self.uart.tick(&mut self.registers) {
                 int |= INT_TIMER4;

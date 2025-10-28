@@ -125,7 +125,7 @@ impl Uart {
                 regs.serctl_r_enable_flag(SerCtlR::tx_rdy);
                 regs.serctl_r_disable_flag(SerCtlR::tx_empty);
             }
-            if self.transmit_holding_register.is_none() {
+            else {
                 regs.serctl_r_enable_flag(SerCtlR::tx_empty);
             }
         }

@@ -64,7 +64,7 @@ pub struct Timers {
     timer: [Timer; TIMER_COUNT + AUDIO_TIMER_COUNT],
     audio_reg: [AudioTimerRegisters; AUDIO_TIMER_COUNT],
     countdown: [u16; 16], //Round up to 256 bits for SIMD
-    triggered: [bool; TIMER_COUNT + AUDIO_TIMER_COUNT],
+    done: [bool; TIMER_COUNT + AUDIO_TIMER_COUNT],
 }
 
 impl Timers {
@@ -87,14 +87,14 @@ impl Timers {
             ],
             countdown: [0; 16],
             audio_reg: [AudioTimerRegisters::new(); AUDIO_TIMER_COUNT],
-            triggered: [false; TIMER_COUNT + AUDIO_TIMER_COUNT],
+            done: [false; TIMER_COUNT + AUDIO_TIMER_COUNT],
         }
     }
 
     #[inline]
     pub fn vsync(&mut self) -> bool {
-        if self.triggered[2] {
-            self.triggered[2] = false;
+        if self.done[2] {
+            self.done[2] = false;
             return true;
         }
         false
@@ -102,8 +102,8 @@ impl Timers {
 
     #[inline]
     pub fn hsync(&mut self) -> Option<u8> {
-        if self.triggered[0] {
-            self.triggered[0] = false;
+        if self.done[0] {
+            self.done[0] = false;
             return Some(self.timer[2].count());
         }
         None
@@ -164,6 +164,7 @@ impl Timers {
         // bool: Timer 4 has a special treatment, triggered information without interrupt
         let mut int: u8 = 0;
         let mut countdown_triggered: [u16; 16] = [0; 16];
+        self.done[4] = false;
 
         self.check_if_triggered(&mut countdown_triggered);
 
@@ -175,19 +176,19 @@ impl Timers {
                 int |= Self::tick_timer(
                     &mut self.timer,
                     &mut self.audio_reg,
-                    &mut self.triggered,
+                    &mut self.done,
                     id,
                 );
                 self.update_timer_countdown(id);
             });
 
-        (int, countdown_triggered[4] != 0)
+        (int, self.done[4])
     }
 
     pub fn tick_timer(
         timers: &mut [Timer],
         audio_regs: &mut [AudioTimerRegisters],
-        triggereds: &mut [bool],
+        dones: &mut [bool],
         id: usize,
     ) -> u8 {
         let timer = &mut timers[id];
@@ -199,7 +200,7 @@ impl Timers {
         }
 
         if !timer.reload_enabled() && timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
-            triggereds[id] = false;
+            dones[id] = false;
             return 0;
         }
 
@@ -207,7 +208,7 @@ impl Timers {
             if !timer.count_enabled() || (is_audio!(id) && audio_regs[id - TIMER_COUNT].disabled())
             {
                 timer.disable_tick_countdown();
-                triggereds[id] = false;
+                dones[id] = false;
                 return 0;
             }
             timer.reset_tick_countdown();
@@ -219,9 +220,9 @@ impl Timers {
         } else {
             None
         };
-        (triggereds[id], int) = Self::timer_count_down(timer, audio);
+        (dones[id], int) = Self::timer_count_down(timer, audio);
 
-        if !triggereds[id] {
+        if !dones[id] {
             return 0;
         }
 
@@ -229,7 +230,7 @@ impl Timers {
             let linked_id = lid.get() as usize;
             if timers[linked_id].is_linked() {
                 trace!("Timer #{id}, trigger linked timer #{linked_id}");
-                int |= Self::tick_timer(timers, audio_regs, triggereds, linked_id);
+                int |= Self::tick_timer(timers, audio_regs, dones, linked_id);
             }
         }
 
