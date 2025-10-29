@@ -217,12 +217,14 @@ impl Uart {
                 trace!("Received 0x{:02X}", self.receive_register_buffer);
                 if self.receive_register.len() >= RX_BUFFER_LEN {
                     trace!("Overrun");
+                    self.receive_register.pop_back();
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
-                } else {
-                    self.receive_register
-                        .push_back(self.receive_register_buffer);
-                    regs.serctl_r_enable_flag(SerCtlR::rx_rdy);
                 }
+
+                self.receive_register
+                    .push_back(self.receive_register_buffer);
+                regs.serctl_r_enable_flag(SerCtlR::rx_rdy);
+
                 self.receive_register_len = 0;
             }
             _ => (),
@@ -230,14 +232,19 @@ impl Uart {
     }
 
     pub fn get_data(&mut self, regs: &mut MikeyRegisters) -> u8 {
-        regs.serctl_r_disable_flag(SerCtlR::rx_rdy);
-        match self.receive_register.pop_front() {
+        let data = match self.receive_register.pop_front() {
             None => 0,
             Some(data) => {
                 trace!("Get 0x{data:02X}");
                 data
             }
+        };
+
+        if self.receive_register.is_empty() {
+            regs.serctl_r_disable_flag(SerCtlR::rx_rdy);
         }
+
+        data
     }
 
     pub fn set_transmit_holding_buffer(&mut self, regs: &mut MikeyRegisters, data: u8) {
