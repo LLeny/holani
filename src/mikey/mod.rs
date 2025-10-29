@@ -146,6 +146,12 @@ impl Mikey {
             }
         }
 
+        if self.registers.serctl_w_is_flag_set(SerCtlW::tx_int_en)
+            && self.registers.serctl_r_is_flag_set(SerCtlR::tx_rdy)
+        {
+            int |= INT_TIMER4;
+        }
+
         if let Some(hsync_count) = self.timers.hsync() {
             trace!("hsync {}", self.ticks);
             self.video.hsync(hsync_count, &self.registers);
