@@ -1,3 +1,4 @@
+use core::ops::Not;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -16,11 +17,31 @@ impl From<u8> for RedeyeStatus {
     }
 }
 
+impl From<bool> for RedeyeStatus {
+    fn from(value: bool) -> Self {
+        match value {
+            true => RedeyeStatus::High,
+            false => RedeyeStatus::Low,
+        }
+    }
+}
+
 impl From<RedeyeStatus> for u8 {
     fn from(val: RedeyeStatus) -> Self {
         match val {
             RedeyeStatus::High => 1,
             RedeyeStatus::Low => 0,
+        }
+    }
+}
+
+impl Not for RedeyeStatus {
+    type Output = Self;
+
+    fn not(self) -> Self {
+        match self {
+            RedeyeStatus::High => RedeyeStatus::Low,
+            RedeyeStatus::Low => RedeyeStatus::High,
         }
     }
 }

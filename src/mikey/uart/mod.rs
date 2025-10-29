@@ -12,17 +12,9 @@ use super::{alloc, trace, Deserialize, MikeyRegisters, SerCtlR, SerCtlW, Seriali
 use comlynx_cable_shared_memory::ComlynxCable;
 use redeye_status::RedeyeStatus;
 
-macro_rules! bool_parity {
-    ($bit: expr) => {
-        match $bit {
-            true => RedeyeStatus::High,
-            false => RedeyeStatus::Low,
-        }
-    };
-}
-
 const RX_BUFFER_LEN: usize = 2;
 const GENERATOR_DELAY: u8 = 8;
+
 #[derive(Serialize, Deserialize)]
 pub struct Uart {
     receive_register_len: u8,
@@ -126,8 +118,7 @@ impl Uart {
                 self.load_transmit_data(data, regs);
                 regs.serctl_r_enable_flag(SerCtlR::tx_rdy);
                 regs.serctl_r_disable_flag(SerCtlR::tx_empty);
-            }
-            else {
+            } else {
                 regs.serctl_r_enable_flag(SerCtlR::tx_empty);
             }
         }
@@ -145,17 +136,16 @@ impl Uart {
         // stop bit
         self.transmit_register.push(RedeyeStatus::High);
         // parity
-        self.transmit_register
-            .push(if regs.serctl_w_is_flag_set(SerCtlW::par_en) {
-                let par = bool_parity!(data.count_ones() & 1 == 1);
-                match par {
-                    RedeyeStatus::High => regs.serctl_r_enable_flag(SerCtlR::par_bit),
-                    RedeyeStatus::Low => regs.serctl_r_disable_flag(SerCtlR::par_bit),
-                }
-                par
-            } else {
-                bool_parity!(regs.serctl_w_is_flag_set(SerCtlW::par_even))
-            });
+        let parity = RedeyeStatus::from(if regs.serctl_w_is_flag_set(SerCtlW::par_en) {
+            let is_odd_parity = data.count_ones() & 1 != 0;
+            match regs.serctl_w_is_flag_set(SerCtlW::par_even) {
+                true => is_odd_parity,
+                false => !is_odd_parity,
+            }
+        } else {
+            regs.serctl_w_is_flag_set(SerCtlW::par_even)
+        });
+        self.transmit_register.push(parity);
         // data
         for _i in 0..8 {
             self.transmit_register.push(if data & 0x01 != 0 {
@@ -195,24 +185,25 @@ impl Uart {
             }
             1..=8 => {
                 self.receive_register_buffer <<= 1;
-                self.receive_register_buffer |= u8::from(redeye_status == RedeyeStatus::High);
+                self.receive_register_buffer |= u8::from(redeye_status);
                 self.receive_register_len += 1;
             }
             9 => {
-                if regs.serctl_w_is_flag_set(SerCtlW::par_en) {
-                    let par = bool_parity!(self.receive_register_buffer.count_ones() & 1 == 1);
-                    if par == RedeyeStatus::High {
-                        regs.serctl_r_enable_flag(SerCtlR::par_bit);
-                    } else {
-                        regs.serctl_r_disable_flag(SerCtlR::par_bit);
+                let calc_par = if regs.serctl_w_is_flag_set(SerCtlW::par_en) {
+                    let odd_par = self.receive_register_buffer.count_ones() & 1 != 0;
+                    match regs.serctl_w_is_flag_set(SerCtlW::par_even) {
+                        true => odd_par,
+                        false => !odd_par,
                     }
-                    if par != redeye_status {
-                        trace!("Parity Error");
-                        regs.serctl_r_enable_flag(SerCtlR::par_err);
-                    }
-                } else if redeye_status
-                    != bool_parity!(regs.serctl_w_is_flag_set(SerCtlW::par_even))
-                {
+                } else {
+                    regs.serctl_w_is_flag_set(SerCtlW::par_even)
+                };
+                if calc_par {
+                    regs.serctl_r_enable_flag(SerCtlR::par_bit);
+                } else {
+                    regs.serctl_r_disable_flag(SerCtlR::par_bit);
+                }
+                if redeye_status != calc_par.into() {
                     trace!("Parity Error");
                     regs.serctl_r_enable_flag(SerCtlR::par_err);
                 }
@@ -228,7 +219,8 @@ impl Uart {
                     trace!("Overrun");
                     regs.serctl_r_enable_flag(SerCtlR::overrun);
                 } else {
-                    self.receive_register.push_back(self.receive_register_buffer);
+                    self.receive_register
+                        .push_back(self.receive_register_buffer);
                     regs.serctl_r_enable_flag(SerCtlR::rx_rdy);
                 }
                 self.receive_register_len = 0;
