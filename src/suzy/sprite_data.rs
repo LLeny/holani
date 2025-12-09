@@ -3,7 +3,7 @@ use mikey::video::LYNX_SCREEN_WIDTH;
 
 use super::{
     mikey, Deserialize, Serialize, SuzyRegisters, COLLADRL, COLLBASL, LINE_END, SPRCTL1_LITERAL,
-    SPRDLINEL, SUZY_DATA_BUFFER_LEN, VIDADRL, VIDBASL,
+    SUZY_DATA_BUFFER_LEN, VIDADRL, VIDBASL,
 };
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -22,7 +22,6 @@ pub struct SpriteData {
     repeat_count: u16,
     line_pixel: u32,
     line_type: LineType,
-    addr: u16,
 }
 
 impl SpriteData {
@@ -35,7 +34,6 @@ impl SpriteData {
             repeat_count: 0,
             line_pixel: 0,
             line_type: LineType::Error,
-            addr: 0,
         }
     }
 
@@ -46,7 +44,8 @@ impl SpriteData {
         self.line_pixel = 0;
         self.line_type = LineType::Error;
         self.bits_left = 0xffff;
-        self.addr = regs.u16(SPRDLINEL);
+        regs.set_tmp_addr(regs.sprdline());
+
         trace!("reset");
     }
 
@@ -201,15 +200,6 @@ impl SpriteData {
         }
 
         Ok(self.line_pixel)
-    }
-
-    #[must_use]
-    pub fn addr(&self) -> u16 {
-        self.addr
-    }
-
-    pub fn set_addr(&mut self, addr: u16) {
-        self.addr = addr;
     }
 
     #[must_use]

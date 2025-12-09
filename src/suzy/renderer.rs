@@ -10,7 +10,7 @@ use suzy::{
     SPRCTL1_REUSE_PALETTE, SPRCTL1_SKIP_SPRITE, SPRDLINEH, SPRDLINEL, SPRDOFFL, SPRGO,
     SPRGO_EVERON, SPRHSIZH, SPRHSIZL, SPRVSIZH, SPRVSIZL, STRETCHH, STRETCHL,
     SUZY_SPRITE_SCB_ADDITIONAL_COST, SUZY_SPRITE_VERT_ADDITIONAL_COST, TILTACUMH, TILTACUML, TILTH,
-    TILTL, TMPADRH, TMPADRL, VIDADRL, VOFFL, VPOSSTRTH, VPOSSTRTL, VSIZACUMH, VSIZACUML, VSIZOFFL,
+    TILTL, VIDADRL, VOFFL, VPOSSTRTH, VPOSSTRTL, VSIZACUMH, VSIZACUML, VSIZOFFL,
 };
 
 macro_rules! peek_dma {
@@ -22,8 +22,8 @@ macro_rules! peek_dma {
 
 macro_rules! peek_scb_header {
     ($slf: ident, $regs: ident, $ram: ident) => {{
-        let data = peek_dma!($regs, $ram, $slf.sprite_data.addr());
-        $slf.inc_scb_curr_adr();
+        let data = peek_dma!($regs, $ram, $regs.tmp_addr());
+        $regs.set_tmp_addr($regs.tmp_addr().overflowing_add(1).0);
         $slf.scb_step += 1;
         data
     }};
@@ -31,9 +31,9 @@ macro_rules! peek_scb_header {
 
 macro_rules! peek_and_store_scb_data {
     ($slf: ident, $regs: ident, $ram: ident) => {
-        let data = peek_dma!($regs, $ram, $slf.sprite_data.addr());
+        let data = peek_dma!($regs, $ram, $regs.tmp_addr());
         $slf.sprite_data.push_data(data);
-        $slf.inc_scb_curr_adr();
+        $regs.set_tmp_addr($regs.tmp_addr().overflowing_add(1).0);
     };
 }
 
@@ -55,6 +55,7 @@ pub struct Renderer {
     orig_hsign: i16,
     hquadoff: i16,
     vquadoff: i16,
+    hsize_accumulator: u16,
     screen_h_start: i16,
     screen_v_start: i16,
     voff: i16,
@@ -85,6 +86,7 @@ impl Renderer {
             hsign: 0,
             hquadoff: 0,
             vquadoff: 0,
+            hsize_accumulator: 0,
             screen_h_start: 0,
             screen_v_start: 0,
             voff: 0,
@@ -124,8 +126,7 @@ impl Renderer {
             trace!("Stop current sprite.");
             self.stop_sprite_engine(regs);
         } else {
-            self.sprite_data.reset(regs);
-            self.sprite_data.set_addr(scbaddr);
+            regs.set_tmp_addr(scbaddr);
             regs.set_task_ticks_delay(SUZY_SPRITE_SCB_ADDITIONAL_COST);
             regs.inc_task_step();
         }
@@ -152,7 +153,6 @@ impl Renderer {
                 if regs.sprctl1() & SPRCTL1_SKIP_SPRITE != 0 {
                     trace!("Sprite skipped.");
                     self.scb_step = 0;
-                    self.sprite_data.reset(regs);
                     regs.set_task_step(TaskStep::InitializePainting); // next scb if any
                 }
             }
@@ -213,7 +213,6 @@ impl Renderer {
             regs.inc_task_step();
             self.scb_step = 0;
             self.scb_pen_idx = 0;
-            self.sprite_data.reset(regs);
             trace!("End Load SCB.");
         }
     }
@@ -228,10 +227,8 @@ impl Renderer {
         );
         self.ever_on_screen = false;
         self.collision = 0;
-        self.sprite_data.set_addr(regs.sprdline());
         self.start_quadrant = regs.start_quadrant();
         self.quadrant = self.start_quadrant;
-        regs.set_u16(TMPADRL, 0);
         self.hoff = regs.i16(HOFFL);
         self.voff = regs.i16(VOFFL);
         self.screen_h_start = self.hoff;
@@ -367,10 +364,7 @@ impl Renderer {
         regs.set_data(VSIZACUMH, 0);
 
         if 1 == regs.u16(SPRDOFFL) {
-            regs.set_u16(
-                SPRDLINEL,
-                regs.u16(SPRDLINEL).overflowing_add(regs.u16(SPRDOFFL)).0,
-            );
+            regs.set_u16(SPRDLINEL, regs.sprdline().overflowing_add(1).0);
             regs.set_task_step(TaskStep::NextQuadrant);
             return;
         }
@@ -388,7 +382,7 @@ impl Renderer {
         trace!("< render_lines_end.");
         regs.set_u16(
             SPRDLINEL,
-            regs.u16(SPRDLINEL).overflowing_add(regs.u16(SPRDOFFL)).0,
+            regs.sprdline().overflowing_add(regs.u16(SPRDOFFL)).0,
         );
 
         /* "
@@ -433,9 +427,9 @@ impl Renderer {
 
         self.hoff = regs.i16(HPOSSTRTL) - self.screen_h_start;
 
-        regs.set_u16(TMPADRL, 0);
+        self.hsize_accumulator = 0;
         if self.hsign > 0 {
-            regs.set_u16(TMPADRL, regs.u16(HSIZOFFL));
+            self.hsize_accumulator = regs.u16(HSIZOFFL);
         }
 
         if self.quadrant == self.start_quadrant {
@@ -506,12 +500,9 @@ impl Renderer {
             return;
         }
 
-        regs.set_u16(
-            TMPADRL,
-            regs.u16(TMPADRL).overflowing_add(regs.u16(SPRHSIZL)).0,
-        );
-        self.pixel_width = regs.data(TMPADRH);
-        regs.set_data(TMPADRH, 0);
+        self.hsize_accumulator = self.hsize_accumulator.overflowing_add(regs.u16(SPRHSIZL)).0;
+        self.pixel_width = (self.hsize_accumulator >> 8) as u8;
+        self.hsize_accumulator &= 0xff;
 
         for _ in 0..self.pixel_width {
             if self.hoff >= 0 && self.hoff < LYNX_SCREEN_WIDTH as i16 {
@@ -519,7 +510,7 @@ impl Renderer {
                 mem_access_count += self.process_pixel(regs, ram);
                 trace!("- RenderPixel. width:{}", self.pixel_width);
             }
-            self.hoff += self.hsign;
+            self.hoff = self.hoff.overflowing_add(self.hsign).0;
         }
 
         regs.set_task_ticks_delay(mem_access_count);
@@ -804,15 +795,6 @@ impl Renderer {
 
     pub fn push_sprite_data(&mut self, data: u8) {
         self.sprite_data.push_data(data);
-    }
-
-    #[must_use]
-    pub fn scb_curr_adr(&self) -> u16 {
-        self.sprite_data.addr()
-    }
-
-    pub fn inc_scb_curr_adr(&mut self) {
-        self.sprite_data.set_addr(self.sprite_data.addr() + 1);
     }
 }
 

@@ -8,7 +8,7 @@ use super::{
     alloc, divide, multiply, set_matha, set_mathc, set_mathe, set_mathm, Deserialize, Serialize,
     SuzyInstruction, SuzyTask, HSIZOFFL, JOYSTICK, PROCADRL, SCBADRL, SCBNEXTL, SPRCOLL, SPRCTL0,
     SPRCTL0_BPP, SPRCTL1, SPRCTL1_DRAW_QUAD, SPRDLINEL, SUZYHREV, SUZ_ADDR, SWITCHES, TILTACUML,
-    VIDADRL, VSIZOFFL,
+    VIDADRL, VSIZOFFL, TMPADRL
 };
 use alloc::vec::Vec;
 use bitflags::bitflags;
@@ -406,14 +406,13 @@ impl SuzyRegisters {
     }
 
     #[inline]
-    pub fn inc_sprdline(&mut self) {
-        let (v, _) = self.u16(SPRDLINEL).overflowing_add(1);
-        self.set_u16(SPRDLINEL, v);
+    pub fn set_scb_addr(&mut self, v: u16) {
+        self.set_u16(SCBADRL, v);
     }
 
     #[inline]
-    pub fn set_scb_addr(&mut self, v: u16) {
-        self.set_u16(SCBADRL, v);
+    pub fn set_tmp_addr(&mut self, v: u16) {
+        self.set_u16(TMPADRL, v);
     }
 
     #[inline]
@@ -430,6 +429,12 @@ impl SuzyRegisters {
     #[must_use]
     pub fn scb_addr(&self) -> u16 {
         self.u16(SCBADRL)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn tmp_addr(&self) -> u16 {
+        self.u16(TMPADRL)
     }
 
     #[inline]
