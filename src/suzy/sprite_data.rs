@@ -16,7 +16,7 @@ pub enum LineType {
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SpriteData {
-    shift_reg: u16,
+    shift_reg: u32,
     bits_left: u16,
     shift_reg_count: u16,
     repeat_count: u16,
@@ -85,7 +85,7 @@ impl SpriteData {
 
     pub fn push_data(&mut self, data: u8) {
         self.shift_reg <<= SUZY_DATA_BUFFER_LEN * 8;
-        self.shift_reg |= u16::from(data) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);
+        self.shift_reg |= u32::from(data) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);
         self.shift_reg_count += SUZY_DATA_BUFFER_LEN * 8;
         trace!(
             "Push shift_reg 0x{:08x} shift_reg_count:{}",
@@ -94,38 +94,46 @@ impl SpriteData {
         );
     }
 
-    pub fn get_bits(&mut self, bits: u16) -> Option<u32> {
-        let mut ret = 0;
+    fn peek_bits(&self, start: u16, bits: u16) -> Option<u32> {
+        let end = start + bits;
 
-        if self.bits_left <= bits {
-            trace!("get_bits({}) no bits left {}.", bits, self.bits_left);
-            return Some(ret);
+        if self.bits_left <= end {
+            trace!(
+                "peek_bits({},{}) no bits left {}.",
+                start,
+                bits,
+                self.bits_left
+            );
+            return Some(0);
         }
 
-        if self.shift_reg_count < bits {
+        if self.shift_reg_count < end {
             trace!(
-                "get_bits({}) shift_reg_count too low {}.",
+                "peek_bits({},{}) shift_reg_count too low {}.",
+                start,
                 bits,
                 self.shift_reg_count
             );
             return None;
         }
 
-        ret = u32::from(self.shift_reg >> (self.shift_reg_count - bits));
-        ret &= (1 << bits) - 1;
+        let shift = self.shift_reg_count - end;
+        let mask = (1 << bits) - 1;
+        let ret = ((self.shift_reg >> shift) & mask) as u32;
 
-        self.shift_reg_count -= bits;
-        self.bits_left -= bits;
-
-        trace!(
-            "get_bits({}), shift_reg_count {}, bits_left {} -> {}",
-            bits,
-            self.shift_reg_count,
-            self.bits_left,
-            ret
-        );
+        trace!("peek_bits({},{}) -> {}", start, bits, ret);
 
         Some(ret)
+    }
+
+    pub fn get_bits(&mut self, bits: u16) -> Option<u32> {
+        if let Some(ret) = self.peek_bits(0, bits) {
+            self.shift_reg_count -= bits;
+            self.bits_left -= bits;
+            Some(ret)
+        } else {
+            None
+        }
     }
 
     /// Gets the next pixel from the sprite line.
@@ -139,67 +147,97 @@ impl SpriteData {
         pens: &[u8; 16],
     ) -> Result<u32, &'static str> {
         trace!("- line_get_pixel");
-        if self.shift_reg_count < 9 {
-            trace!("line_get_pixel buffer too low");
-            return Err("Data buffer too low");
-        }
-
         let bpp: u16 = u16::from(regs.bpp()) + 1;
+        let mut bit_count: u16 = 0;
+        let mut line_pixel = self.line_pixel;
+        let mut line_type = self.line_type;
+        let mut repeat_count = self.repeat_count;
 
-        if 0 == self.repeat_count {
-            if self.line_type != LineType::AbsLiteral {
-                let literal = self.get_bits(1).unwrap();
-                if literal == 1 {
-                    self.line_type = LineType::Literal;
+        let peek_or_err = |start: u16, bits: u16| -> Result<u32, &'static str> {
+            self.peek_bits(start, bits)
+                .ok_or("Not enough data to peek bits")
+        };
+
+        if repeat_count == 0 {
+            if line_type != LineType::AbsLiteral {
+                let literal = peek_or_err(0, 1)?;
+                bit_count += 1;
+                line_type = if literal == 1 {
+                    LineType::Literal
                 } else {
-                    self.line_type = LineType::Packed;
-                }
+                    LineType::Packed
+                };
             }
 
-            match self.line_type {
+            match line_type {
                 LineType::AbsLiteral => {
                     self.line_pixel = LINE_END;
-                    return Result::Ok(self.line_pixel);
+                    self.line_type = line_type;
+                    let _ = self.get_bits(bit_count);
+                    return Ok(LINE_END);
                 }
                 LineType::Literal => {
-                    self.repeat_count = self.get_bits(4).unwrap() as u16;
-                    self.repeat_count += 1;
+                    let count = peek_or_err(bit_count, 4)?;
+                    bit_count += 4;
+                    repeat_count = count as u16 + 1;
                 }
                 LineType::Packed => {
-                    self.repeat_count = self.get_bits(4).unwrap() as u16;
-                    if self.repeat_count == 0 {
-                        self.line_pixel = LINE_END;
+                    let count = peek_or_err(bit_count, 4)?;
+                    bit_count += 4;
+                    repeat_count = count as u16;
+                    if repeat_count == 0 {
+                        line_pixel = LINE_END;
                     } else {
-                        let bits = self.get_bits(bpp).unwrap() as u8;
-                        self.line_pixel = u32::from(pens[bits as usize]);
+                        let bits = peek_or_err(bit_count, bpp)?;
+                        bit_count += bpp;
+                        line_pixel = u32::from(pens[bits as usize]);
                     }
-                    self.repeat_count += 1;
+                    repeat_count += 1;
                 }
-                LineType::Error => return Ok(0),
+                LineType::Error => {
+                    self.line_pixel = line_pixel;
+                    self.line_type = line_type;
+                    self.repeat_count = repeat_count;
+                    let _ = self.get_bits(bit_count);
+                    return Ok(0);
+                }
             }
         }
 
-        if self.line_pixel != LINE_END {
-            self.repeat_count -= 1;
-            match self.line_type {
+        if line_pixel != LINE_END {
+            repeat_count = repeat_count.saturating_sub(1);
+            match line_type {
                 LineType::AbsLiteral => {
-                    self.line_pixel = self.get_bits(bpp).unwrap();
-                    if self.repeat_count == 0 && self.line_pixel == 0 {
-                        self.line_pixel = LINE_END;
+                    let pixel = peek_or_err(bit_count, bpp)?;
+                    bit_count += bpp;
+                    line_pixel = pixel;
+                    if repeat_count == 0 && line_pixel == 0 {
+                        line_pixel = LINE_END;
                     } else {
-                        self.line_pixel = u32::from(pens[self.line_pixel as usize]);
+                        line_pixel = u32::from(pens[line_pixel as usize]);
                     }
                 }
                 LineType::Literal => {
-                    let bits = self.get_bits(bpp).unwrap() as u8;
-                    self.line_pixel = u32::from(pens[bits as usize]);
+                    let bits = peek_or_err(bit_count, bpp)?;
+                    bit_count += bpp;
+                    line_pixel = u32::from(pens[bits as usize]);
                 }
                 LineType::Packed => (),
-                LineType::Error => return Ok(0),
+                LineType::Error => {
+                    self.line_pixel = line_pixel;
+                    self.line_type = line_type;
+                    self.repeat_count = repeat_count;
+                    let _ = self.get_bits(bit_count);
+                    return Ok(0);
+                }
             }
         }
 
-        Ok(self.line_pixel)
+        self.line_pixel = line_pixel;
+        self.line_type = line_type;
+        self.repeat_count = repeat_count;
+        let _ = self.get_bits(bit_count);
+        Ok(line_pixel)
     }
 
     #[must_use]
@@ -211,5 +249,25 @@ impl SpriteData {
 impl Default for SpriteData {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_peek_bits() {
+        let mut sprite_data = SpriteData::new();
+        sprite_data.push_data(0b1010_1100u8);
+        sprite_data.push_data(0b0101_0110u8);
+
+        assert_eq!(sprite_data.peek_bits(0, 4), Some(0b1010));
+        assert_eq!(sprite_data.peek_bits(4, 4), Some(0b1100));
+        assert_eq!(sprite_data.peek_bits(8, 4), Some(0b0101));
+        assert_eq!(sprite_data.peek_bits(12, 4), Some(0b0110));
+        assert_eq!(sprite_data.peek_bits(1, 4), Some(0b0101));
+        assert_eq!(sprite_data.peek_bits(5, 2), Some(0b10));
+        assert_eq!(sprite_data.peek_bits(5, 4), Some(0b1000));
     }
 }
