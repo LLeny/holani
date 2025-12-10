@@ -249,12 +249,12 @@ mod tests {
         sprite_data.push_data(0b1010_1100u8);
         sprite_data.push_data(0b0101_0110u8);
 
-        assert_eq!(sprite_data.peek_bits(0, 4), Some(0b1010));
-        assert_eq!(sprite_data.peek_bits(4, 4), Some(0b1100));
-        assert_eq!(sprite_data.peek_bits(8, 4), Some(0b0101));
-        assert_eq!(sprite_data.peek_bits(12, 4), Some(0b0110));
-        assert_eq!(sprite_data.peek_bits(1, 4), Some(0b0101));
-        assert_eq!(sprite_data.peek_bits(5, 2), Some(0b10));
-        assert_eq!(sprite_data.peek_bits(5, 4), Some(0b1000));
+        assert_eq!(sprite_data.peek_bits(0, 4), Some((0b1010, 4)));
+        assert_eq!(sprite_data.peek_bits(4, 4), Some((0b1100, 4)));
+        assert_eq!(sprite_data.peek_bits(8, 4), Some((0b0101, 4)));
+        assert_eq!(sprite_data.peek_bits(12, 4), Some((0b0110, 4)));
+        assert_eq!(sprite_data.peek_bits(1, 4), Some((0b0101, 4)));
+        assert_eq!(sprite_data.peek_bits(5, 2), Some((0b10, 2)));
+        assert_eq!(sprite_data.peek_bits(5, 4), Some((0b1000, 4)));
     }
 }
