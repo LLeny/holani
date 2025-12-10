@@ -24,6 +24,12 @@ macro_rules! peek_scb_header {
     ($slf: ident, $regs: ident, $ram: ident) => {{
         let data = peek_dma!($regs, $ram, $regs.tmp_addr());
         $regs.set_tmp_addr($regs.tmp_addr().overflowing_add(1).0);
+        trace!(
+            "  SCB Header Step {}: Read 0x{:02X} from 0x{:04X}",
+            $slf.scb_step,
+            data,
+            $regs.tmp_addr()
+        );
         $slf.scb_step += 1;
         data
     }};
@@ -65,7 +71,7 @@ pub struct Renderer {
     pixel_height: u8,
     orig_pixel_height: u8,
     sprite_data: SpriteData,
-    pixel: u32,
+    pixel: u8,
     pixel_width: u8,
     collision: u8,
     pens: [u8; 16],
@@ -140,7 +146,6 @@ impl Renderer {
     }
 
     fn load_scb(&mut self, ram: &mut Ram, regs: &mut SuzyRegisters) {
-        trace!("Load SCB. step: {}", self.scb_step);
         let mut end_scb: bool = false;
 
         match self.scb_step {
@@ -516,17 +521,17 @@ impl Renderer {
         regs.set_task_ticks_delay(mem_access_count);
     }
 
-    fn write_pixel(&mut self, regs: &SuzyRegisters, ram: &mut Ram, pixel: u32) -> u16 {
+    fn write_pixel(&mut self, regs: &SuzyRegisters, ram: &mut Ram, pixel: u8) -> u16 {
         let scr_addr: u16 = regs.u16(VIDADRL) + (self.hoff as u16 / 2);
 
         let mut dest: u8 = ram.get(scr_addr);
 
         if self.hoff & 0x01 == 0 {
             dest &= 0x0f;
-            dest |= (pixel as u8) << 4;
+            dest |= pixel << 4;
         } else {
             dest &= 0xf0;
-            dest |= pixel as u8;
+            dest |= pixel;
         }
         ram.set(scr_addr, dest);
         trace!(
@@ -721,7 +726,7 @@ impl Renderer {
         if self.pixel != 0x00 {
             let (p, m) = self.read_pixel(regs, ram);
             *mem_accesses += m;
-            *mem_accesses += self.write_pixel(regs, ram, u32::from(p) ^ self.pixel);
+            *mem_accesses += self.write_pixel(regs, ram, p ^ self.pixel);
         }
         if self.pixel != 0x00
             && self.pixel != 0x0e

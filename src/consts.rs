@@ -390,4 +390,4 @@ pub const R_PALETTE_05: u16 = 24;
 pub const R_PALETTE_06: u16 = 25;
 pub const R_PALETTE_07: u16 = 26;
 
-pub const LINE_END: u32 = 0x80;
+pub const LINE_END: u8 = 0x80;

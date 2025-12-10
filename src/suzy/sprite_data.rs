@@ -16,11 +16,11 @@ pub enum LineType {
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SpriteData {
-    shift_reg: u32,
+    shift_reg: u64,
     bits_left: u16,
     shift_reg_count: u16,
     repeat_count: u16,
-    line_pixel: u32,
+    line_pixel: u8,
     line_type: LineType,
 }
 
@@ -60,7 +60,7 @@ impl SpriteData {
             Some(v) => v as u16,
         };
 
-        self.bits_left = offset.overflowing_sub(1).0.overflowing_mul(8).0;
+        self.bits_left = offset.saturating_sub(1).saturating_mul(8);
 
         if regs.sprctl1() & SPRCTL1_LITERAL != 0 {
             self.line_type = LineType::AbsLiteral;
@@ -85,7 +85,7 @@ impl SpriteData {
 
     pub fn push_data(&mut self, data: u8) {
         self.shift_reg <<= SUZY_DATA_BUFFER_LEN * 8;
-        self.shift_reg |= u32::from(data) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);
+        self.shift_reg |= u64::from(data) << ((SUZY_DATA_BUFFER_LEN - 1) * 8);
         self.shift_reg_count += SUZY_DATA_BUFFER_LEN * 8;
         trace!(
             "Push shift_reg 0x{:08x} shift_reg_count:{}",
@@ -94,7 +94,7 @@ impl SpriteData {
         );
     }
 
-    fn peek_bits(&self, start: u16, bits: u16) -> Option<u32> {
+    fn peek_bits(&self, start: u16, bits: u16) -> Option<(u8, u8)> {
         let end = start + bits;
 
         if self.bits_left <= end {
@@ -104,7 +104,7 @@ impl SpriteData {
                 bits,
                 self.bits_left
             );
-            return Some(0);
+            return Some((0, 0));
         }
 
         if self.shift_reg_count < end {
@@ -123,14 +123,16 @@ impl SpriteData {
 
         trace!("peek_bits({},{}) -> {}", start, bits, ret);
 
-        Some(ret)
+        Some((ret as u8, bits as u8))
     }
 
-    pub fn get_bits(&mut self, bits: u16) -> Option<u32> {
+    pub fn get_bits(&mut self, bits: u16) -> Option<u8> {
         if let Some(ret) = self.peek_bits(0, bits) {
-            self.shift_reg_count -= bits;
-            self.bits_left -= bits;
-            Some(ret)
+            self.shift_reg_count -= ret.1 as u16;
+            self.bits_left -= ret.1 as u16;
+            self.shift_reg &= (1 << self.shift_reg_count) - 1;
+            trace!("get_bits({}) -> {}, bits_left:{}, shift_reg_count:{}", bits, ret.0, self.bits_left, self.shift_reg_count);
+            Some(ret.0)
         } else {
             None
         }
@@ -145,7 +147,7 @@ impl SpriteData {
         &mut self,
         regs: &mut SuzyRegisters,
         pens: &[u8; 16],
-    ) -> Result<u32, &'static str> {
+    ) -> Result<u8, &'static str> {
         trace!("- line_get_pixel");
         let bpp: u16 = u16::from(regs.bpp()) + 1;
         let mut bit_count: u16 = 0;
@@ -153,9 +155,10 @@ impl SpriteData {
         let mut line_type = self.line_type;
         let mut repeat_count = self.repeat_count;
 
-        let peek_or_err = |start: u16, bits: u16| -> Result<u32, &'static str> {
+        let peek_or_err = |start: u16, bits: u16| -> Result<u8, &'static str> {
             self.peek_bits(start, bits)
                 .ok_or("Not enough data to peek bits")
+                .map(|(v, _)| v)
         };
 
         if repeat_count == 0 {
@@ -170,12 +173,8 @@ impl SpriteData {
             }
 
             match line_type {
-                LineType::AbsLiteral => {
-                    self.line_pixel = LINE_END;
-                    self.line_type = line_type;
-                    let _ = self.get_bits(bit_count);
-                    return Ok(LINE_END);
-                }
+                LineType::AbsLiteral => line_pixel = LINE_END,
+
                 LineType::Literal => {
                     let count = peek_or_err(bit_count, 4)?;
                     bit_count += 4;
@@ -190,17 +189,11 @@ impl SpriteData {
                     } else {
                         let bits = peek_or_err(bit_count, bpp)?;
                         bit_count += bpp;
-                        line_pixel = u32::from(pens[bits as usize]);
+                        line_pixel = pens[bits as usize];
                     }
                     repeat_count += 1;
                 }
-                LineType::Error => {
-                    self.line_pixel = line_pixel;
-                    self.line_type = line_type;
-                    self.repeat_count = repeat_count;
-                    let _ = self.get_bits(bit_count);
-                    return Ok(0);
-                }
+                LineType::Error => line_pixel = LINE_END,
             }
         }
 
@@ -210,26 +203,20 @@ impl SpriteData {
                 LineType::AbsLiteral => {
                     let pixel = peek_or_err(bit_count, bpp)?;
                     bit_count += bpp;
-                    line_pixel = pixel;
+                    line_pixel = pixel as u8;
                     if repeat_count == 0 && line_pixel == 0 {
                         line_pixel = LINE_END;
                     } else {
-                        line_pixel = u32::from(pens[line_pixel as usize]);
+                        line_pixel = pens[line_pixel as usize];
                     }
                 }
                 LineType::Literal => {
                     let bits = peek_or_err(bit_count, bpp)?;
                     bit_count += bpp;
-                    line_pixel = u32::from(pens[bits as usize]);
+                    line_pixel = pens[bits as usize];
                 }
                 LineType::Packed => (),
-                LineType::Error => {
-                    self.line_pixel = line_pixel;
-                    self.line_type = line_type;
-                    self.repeat_count = repeat_count;
-                    let _ = self.get_bits(bit_count);
-                    return Ok(0);
-                }
+                LineType::Error => line_pixel = LINE_END,
             }
         }
 
