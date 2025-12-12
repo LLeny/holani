@@ -118,10 +118,6 @@ impl MikeyRegisters {
             attenuation_left: [0.; 4],
             attenuation_right: [0.; 4],
         };
-        for i in 0..16 {
-            slf.set_data(GREEN0 + i, 0xff);
-            slf.set_data(BLUERED0 + i, 0xff);
-        }
         slf.set_data(ATTEN_A, 0xFF);
         slf.set_data(ATTEN_B, 0xFF);
         slf.set_data(ATTEN_C, 0xFF);
