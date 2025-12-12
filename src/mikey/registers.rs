@@ -143,7 +143,7 @@ impl MikeyRegisters {
     }
 
     pub fn inc_cart_position(&mut self) {
-        self.cart_position = self.cart_position.overflowing_add(1).0;
+        self.cart_position = self.cart_position.saturating_add(1);
     }
 
     pub fn reset_cart_position(&mut self) {

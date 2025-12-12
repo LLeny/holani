@@ -23,7 +23,7 @@ macro_rules! peek_dma {
 macro_rules! peek_scb_header {
     ($slf: ident, $regs: ident, $ram: ident) => {{
         let data = peek_dma!($regs, $ram, $regs.tmp_addr());
-        $regs.set_tmp_addr($regs.tmp_addr().overflowing_add(1).0);
+        $regs.set_tmp_addr($regs.tmp_addr().saturating_add(1));
         trace!(
             "  SCB Header Step {}: Read 0x{:02X} from 0x{:04X}",
             $slf.scb_step,
@@ -39,7 +39,7 @@ macro_rules! peek_and_store_scb_data {
     ($slf: ident, $regs: ident, $ram: ident) => {
         let data = peek_dma!($regs, $ram, $regs.tmp_addr());
         $slf.sprite_data.push_data(data);
-        $regs.set_tmp_addr($regs.tmp_addr().overflowing_add(1).0);
+        $regs.set_tmp_addr($regs.tmp_addr().saturating_add(1));
     };
 }
 
@@ -317,7 +317,7 @@ impl Renderer {
         {
             match regs.sprctl0() & SPRCTL0_SPR_TYPE {
                 2 | 3 | 4 | 6 | 7 => {
-                    let coladr = regs.scb_addr().overflowing_add(regs.u16(COLLOFFL)).0;
+                    let coladr = regs.scb_addr().saturating_add(regs.u16(COLLOFFL));
                     ram.set(coladr, self.collision);
                     mem_count += 1;
                     trace!("set collision 0x{:04X}=0x{:02X}", coladr, self.collision);
@@ -327,7 +327,7 @@ impl Renderer {
         }
 
         if regs.data(SPRGO) & SPRGO_EVERON != 0 {
-            let coladr = regs.scb_addr().overflowing_add(regs.u16(COLLOFFL)).0;
+            let coladr = regs.scb_addr().saturating_add(regs.u16(COLLOFFL));
             let mut coldat = ram.get(coladr);
             if self.ever_on_screen {
                 coldat &= 0x7f;
@@ -359,7 +359,7 @@ impl Renderer {
 
         regs.set_u16(
             VSIZACUML,
-            regs.u16(VSIZACUML).overflowing_add(regs.u16(SPRVSIZL)).0,
+            regs.u16(VSIZACUML).saturating_add(regs.u16(SPRVSIZL)),
         );
 
         self.orig_pixel_height = regs.data(VSIZACUMH);
@@ -369,7 +369,7 @@ impl Renderer {
         regs.set_data(VSIZACUMH, 0);
 
         if 1 == regs.u16(SPRDOFFL) {
-            regs.set_u16(SPRDLINEL, regs.sprdline().overflowing_add(1).0);
+            regs.set_u16(SPRDLINEL, regs.sprdline().saturating_add(1));
             regs.set_task_step(TaskStep::NextQuadrant);
             return;
         }
@@ -387,7 +387,7 @@ impl Renderer {
         trace!("< render_lines_end.");
         regs.set_u16(
             SPRDLINEL,
-            regs.sprdline().overflowing_add(regs.u16(SPRDOFFL)).0,
+            regs.sprdline().saturating_add(regs.u16(SPRDOFFL)),
         );
 
         /* "
@@ -459,14 +459,14 @@ impl Renderer {
         if sprctl1 & SPRCTL1_RELOAD_HVS == SPRCTL1_RELOAD_HVS {
             regs.set_u16(
                 SPRHSIZL,
-                regs.u16(SPRHSIZL).overflowing_add(regs.u16(STRETCHL)).0,
+                regs.u16(SPRHSIZL).saturating_add(regs.u16(STRETCHL)),
             );
         }
 
         if sprctl1 & SPRCTL1_RELOAD_HVST == SPRCTL1_RELOAD_HVST {
             regs.set_u16(
                 TILTACUML,
-                regs.u16(TILTACUML).overflowing_add(regs.u16(TILTL)).0,
+                regs.u16(TILTACUML).saturating_add(regs.u16(TILTL)),
             );
         }
 
@@ -505,7 +505,7 @@ impl Renderer {
             return;
         }
 
-        self.hsize_accumulator = self.hsize_accumulator.overflowing_add(regs.u16(SPRHSIZL)).0;
+        self.hsize_accumulator = self.hsize_accumulator.saturating_add(regs.u16(SPRHSIZL));
         self.pixel_width = (self.hsize_accumulator >> 8) as u8;
         self.hsize_accumulator &= 0xff;
 
@@ -515,7 +515,7 @@ impl Renderer {
                 mem_access_count += self.process_pixel(regs, ram);
                 trace!("- RenderPixel. width:{}", self.pixel_width);
             }
-            self.hoff = self.hoff.overflowing_add(self.hsign).0;
+            self.hoff = self.hoff.saturating_add(self.hsign);
         }
 
         regs.set_task_ticks_delay(mem_access_count);
