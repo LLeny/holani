@@ -59,7 +59,7 @@ pub fn divide(regs: &mut SuzyRegisters) {
 pub fn multiply(regs: &mut SuzyRegisters) {
     let ab = u32::from(regs.ab());
     let cd = u32::from(regs.tmp_cd());
-    let mut efgh = ab.saturating_mul(cd);
+    let mut efgh = ab.overflowing_mul(cd).0;
 
     regs.sprsys_r_enable_flag(SprSysR::unsafe_acces); //"BIG NOTE: Unsafe access is broken for math operations. Please reset it after every math operation or it will not be useful for sprite operations."" 
     regs.sprsys_r_disable_flag(SprSysR::math_warning);
@@ -67,7 +67,7 @@ pub fn multiply(regs: &mut SuzyRegisters) {
 
     if regs.sprsys_w_is_flag_set(SprSysW::sign_math) && 0 == regs.sign_ab() + regs.tmp_sign_cd() {
         efgh ^= 0xffff_ffff;
-        efgh = efgh.saturating_add(1);
+        efgh = efgh.overflowing_add(1).0;
         if efgh != 0 {
             regs.sprsys_r_enable_flag(SprSysR::math_carry);
         }
@@ -80,7 +80,7 @@ pub fn multiply(regs: &mut SuzyRegisters) {
     if regs.sprsys_w_is_flag_set(SprSysW::accumulate) {
         let jklm = i64::from(regs.jklm());
         let efgh = i64::from(regs.efgh());
-        let r = jklm.saturating_add(efgh);
+        let r = jklm.overflowing_add(efgh).0;
 
         trace!("MATH: multiply accumulate jklm:0x{jklm:08x} + efgh:0x{efgh:08x} -> jklm:0x{r:08x}");
         if r > i64::from(u32::MAX) {
