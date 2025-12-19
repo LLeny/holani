@@ -435,6 +435,14 @@ impl M6502 {
         }
         self.flags |= M6502Flags::from_bits(v).unwrap() & (M6502Flags::N|M6502Flags::V);
     }
+    
+    fn bit_immediate(&mut self, v: u8) {
+        let t: u8 = self.a & v;
+        self.flags &= !(M6502Flags::Z);
+        if t == 0 {
+            self.flags |= M6502Flags::Z;
+        }
+    }
 
     pub fn z(&mut self, value: u8) {
         if value == 0 {
@@ -1443,11 +1451,11 @@ const INSTRUCTIONS: [InstructionSteps; 0x100] =
             { _pins.sa(_cpu.pc);} ,
             { _cpu.y = _cpu.y.overflowing_sub(1).0;_cpu.nz(_cpu.y);_pins.fetch(_cpu.pc);}   ),
 
-        /*0x89 BIT # , 2, 3, A ∧ M, M7 → N, M6 → V */ 
+        /*0x89 BIT # , 2, 3, A ∧ M */ 
         IR_STEPS!(_cpu,_pins,
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
             { _pins.sa(_cpu.pc); _cpu.ad=u16::from(_pins.gd());} ,
-            { _cpu.bit(_cpu.ad as u8);_pins.fetch(_cpu.pc);}  ),
+            { _cpu.bit_immediate(_cpu.ad as u8);_pins.fetch(_cpu.pc);}  ),
 
         /*0x8A TXA */ 
         IR_STEPS!(_cpu,_pins,
@@ -3352,7 +3360,9 @@ mod tests {
             0x3C, 0x1E, 0x00,   // BIT $001E, X
             0x3C, 0xFE, 0x0F,   // BIT $0FFE, X            
             0x34, 0x1E,         // BIT $1E, X
-            0x34, 0xFE,         // BIT $1D, X  
+            0x34, 0xFE,         // BIT $1D, X 
+            0xA9, 0x00,         // LDA #$00
+            0x89, 0xFF,         // BIT #$FF 
         ];
         copy(&mut core, 0x0200, &prog);
         cpu_prefetch(&mut core, 0x0200);
@@ -3366,15 +3376,17 @@ mod tests {
         T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::Z));
         T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::N));
         T!(4 == step(&mut core)); T!(tf!(core,M6502Flags::N|M6502Flags::V));
-        T!(2 == step(&mut core)); T!(0xc7 == R!(core, a));
-        T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::N));
-        T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::N|M6502Flags::V));
-        T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::V));
-        T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::Z));
+        T!(2 == step(&mut core));
+        T!(3 == step(&mut core));
+        T!(3 == step(&mut core));
+        T!(3 == step(&mut core));
+        T!(3 == step(&mut core));
         T!(2 == step(&mut core)); T!(0x02 == R!(core, x));
         T!(4 == step(&mut core)); T!(tf!(core,M6502Flags::N));
         T!(4 == step(&mut core)); T!(tf!(core,M6502Flags::N|M6502Flags::V));
         T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::N));
+        T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::Z));
+        T!(2 == step(&mut core)); T!(0x00 == R!(core, a));
         T!(3 == step(&mut core)); T!(tf!(core,M6502Flags::Z));
     }
     
