@@ -138,10 +138,7 @@ impl Uart {
         // parity
         let parity = RedeyeStatus::from(if regs.serctl_w_is_flag_set(SerCtlW::par_en) {
             let is_odd_parity = data.count_ones() & 1 != 0;
-            match regs.serctl_w_is_flag_set(SerCtlW::par_even) {
-                true => is_odd_parity,
-                false => !is_odd_parity,
-            }
+            if regs.serctl_w_is_flag_set(SerCtlW::par_even) { is_odd_parity } else { !is_odd_parity }
         } else {
             regs.serctl_w_is_flag_set(SerCtlW::par_even)
         });
@@ -191,10 +188,7 @@ impl Uart {
             9 => {
                 let calc_par = if regs.serctl_w_is_flag_set(SerCtlW::par_en) {
                     let odd_par = self.receive_register_buffer.count_ones() & 1 != 0;
-                    match regs.serctl_w_is_flag_set(SerCtlW::par_even) {
-                        true => odd_par,
-                        false => !odd_par,
-                    }
+                    if regs.serctl_w_is_flag_set(SerCtlW::par_even) { odd_par } else { !odd_par }
                 } else {
                     regs.serctl_w_is_flag_set(SerCtlW::par_even)
                 };
