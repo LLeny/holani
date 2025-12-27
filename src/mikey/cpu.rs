@@ -1278,7 +1278,7 @@ const INSTRUCTIONS: [InstructionSteps; 0x100] =
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;} ,
             { _pins.sa(_cpu.pc); _cpu.pc=_cpu.pc.overflowing_add(1).0;_cpu.ad=u16::from(_pins.gd());} ,
             { _cpu.ad|=u16::from(_pins.gd())<<8;_pins.sa(_cpu.ad);} ,
-            { _pins.sa((_cpu.ad & 0xFF00)|((_cpu.ad+1)&0x00FF));_cpu.ad=u16::from(_pins.gd());} ,
+            { _pins.sa(_cpu.ad+1);_cpu.ad=u16::from(_pins.gd());} ,
             { _cpu.pc=(u16::from(_pins.gd())<<8)|_cpu.ad;_pins.fetch(_cpu.pc);}),
 
         /*0x6D ADC abs */ 
