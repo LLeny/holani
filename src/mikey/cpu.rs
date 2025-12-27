@@ -296,10 +296,7 @@ impl M6502 {
                 al += 6;
             }
             let mut ah: u8 = (self.a >> 4) + (val >> 4) + u8::from(al > 0x0F);
-            if (self.a.overflowing_add(val).0.overflowing_add(c).0) == 0 {
-                self.flags |= M6502Flags::Z;
-            }
-            else if ah & 0x08 != 0 {
+            if ah & 0x08 != 0 {
                 self.flags |= M6502Flags::N;
             }
             if (!(self.a^val) & (self.a^(ah<<4))) & 0x80 != 0 {
@@ -326,6 +323,10 @@ impl M6502 {
             }
             self.a = sum as u8;
         }
+        
+        if self.a == 0 {
+            self.flags |= M6502Flags::Z;
+        }
     }
 
     fn sbc(&mut self, val: u8) {
@@ -339,10 +340,7 @@ impl M6502 {
                 al -= 6;
             }
             let mut ah: u8 = (self.a>>4).overflowing_sub(val>>4).0.overflowing_sub(u8::from((al as i8) < 0)).0;
-            if 0 == (diff as u8) {
-                self.flags |= M6502Flags::Z;
-            }
-            else if diff & 0x80 != 0 {
+            if diff & 0x80 != 0 {
                 self.flags |= M6502Flags::N;
             }
             if ((self.a^val) & (self.a^(diff as u8)) & 0x80) != 0 {
@@ -369,6 +367,10 @@ impl M6502 {
                 self.flags |= M6502Flags::C;
             }
             self.a = diff as u8;
+        }
+                
+        if self.a == 0 {
+            self.flags |= M6502Flags::Z;
         }
     }
 
