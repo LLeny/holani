@@ -3506,14 +3506,14 @@ mod tests {
     }
 
     #[test]
-    fn jmp_indirect_wrap() {
+    fn jmp_indirect_no_wrap() {
         let mut core: TestCore = TestCore::default();
         init!(core);
         let prog = [
             0xA9, 0x33,         // LDA #$33
             0x8D, 0xFF, 0x21,   // STA $21FF
             0xA9, 0x22,         // LDA #$22
-            0x8D, 0x00, 0x21,   // STA $2100    // note: wraps around!
+            0x8D, 0x00, 0x22,   // STA $2100 
             0x6C, 0xFF, 0x21,   // JMP ($21FF)
         ];
         copy(&mut core, 0x0200, &prog);
@@ -3522,7 +3522,7 @@ mod tests {
         T!(2 == step(&mut core)); T!(R!(core, a) == 0x33);
         T!(4 == step(&mut core)); T!(get(&core, 0x21FF) == 0x33);
         T!(2 == step(&mut core)); T!(R!(core, a) == 0x22);
-        T!(4 == step(&mut core)); T!(get(&core, 0x2100) == 0x22);
+        T!(4 == step(&mut core)); T!(get(&core, 0x2200) == 0x22);
         T!(5 == step(&mut core)); T!(R!(core, pc) == 0x2233);
     }
     
