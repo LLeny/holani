@@ -630,7 +630,7 @@ const INSTRUCTIONS: [InstructionSteps; 0x100] =
             { if !_cpu.break_flags.contains(M6502BreakFlags::IRQ) && !_cpu.break_flags.contains(M6502BreakFlags::NMI) {_cpu.pc=_cpu.pc.overflowing_add(1).0;}_pins.sad(0x0100|u16::from(_cpu.s),(_cpu.pc>>8) as u8); _cpu.s=_cpu.s.overflowing_sub(1).0;if !_cpu.break_flags.contains(M6502BreakFlags::RESET) {_pins.pin_off(M6502_RW);}},
             { _pins.sad(0x0100|u16::from(_cpu.s), _cpu.pc as u8);_cpu.s=_cpu.s.overflowing_sub(1).0;if !_cpu.break_flags.contains(M6502BreakFlags::RESET) {_pins.pin_off(M6502_RW);}},
             { _pins.sad(0x0100|u16::from(_cpu.s), (_cpu.flags|M6502Flags::X|if _cpu.break_flags.is_empty() {M6502Flags::B} else {M6502Flags::empty()}).bits()); _cpu.s=_cpu.s.overflowing_sub(1).0;if _cpu.break_flags.contains(M6502BreakFlags::RESET) {_cpu.ad=0xFFFC;}else{_pins.pin_off(M6502_RW);if _cpu.break_flags.contains(M6502BreakFlags::NMI) {_cpu.ad=0xFFFA;}else{_cpu.ad=0xFFFE;}}},
-            { _pins.sa(_cpu.ad); _cpu.ad +=1;_cpu.flags|=M6502Flags::I|M6502Flags::B;_cpu.break_flags=M6502BreakFlags::empty(); },
+            { _pins.sa(_cpu.ad); _cpu.ad +=1;_cpu.flags&=!M6502Flags::D;_cpu.flags|=M6502Flags::I|M6502Flags::B;_cpu.break_flags=M6502BreakFlags::empty(); },
             { _pins.sa(_cpu.ad);_cpu.ad=u16::from(_pins.gd()); },
             { _cpu.pc=(u16::from(_pins.gd())<<8)|_cpu.ad;_pins.fetch(_cpu.pc);},
             unreachable!() ),
