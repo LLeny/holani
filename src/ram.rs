@@ -15,6 +15,7 @@ pub struct Ram {
     data_r: u8,
     ticks_to_done: i8,
     write: bool,
+    page_mode_enabled: bool,
 }
 
 impl Ram {
@@ -26,6 +27,7 @@ impl Ram {
             addr_r: 0,
             data_r: 0,
             write: false,
+            page_mode_enabled: true,
         };
         r.data[MMC_ADDR as usize] = 0;
         r
@@ -52,7 +54,7 @@ impl Ram {
     }
 
     pub fn peek(&mut self, bus: &Bus) {
-        if bus.addr() & 0xff00 == self.addr_r & 0xff00 {
+        if self.page_mode_enabled && bus.addr() & 0xff00 == self.addr_r & 0xff00 {
             self.ticks_to_done = RAM_PAGE_READ_TICKS;
             trace!("Peek 0x{:04x} (page mode)", bus.addr());
         } else {
@@ -68,11 +70,7 @@ impl Ram {
         self.addr_r = bus.addr();
         self.write = true;
         self.data_r = bus.data();
-        trace!(
-            "Poke 0x{:04x} = 0x{:02x}",
-            self.addr_r,
-            self.data_r
-        );
+        trace!("Poke 0x{:04x} = 0x{:02x}", self.addr_r, self.data_r);
     }
 
     pub fn tick(&mut self, bus: &mut Bus) {
@@ -80,17 +78,16 @@ impl Ram {
             -1 => (),
             0 => {
                 if self.write {
-                    self.data[self.addr_r as usize] = self.data_r;
+                    match self.addr_r {
+                        MMC_ADDR => self.set_mmapctl(self.data_r),
+                        _ => self.data[self.addr_r as usize] = self.data_r,
+                    }
                     bus.set_status(BusStatus::PokeDone);
                     trace!("< Poke 0x{:02x}", self.data_r);
                 } else {
                     bus.set_data(self.data[self.addr_r as usize]);
                     bus.set_status(BusStatus::PeekDone);
-                    trace!(
-                        "< Peek 0x{:04x} -> 0x{:02x}",
-                        self.addr_r,
-                        bus.data()
-                    );
+                    trace!("< Peek 0x{:04x} -> 0x{:02x}", self.addr_r, bus.data());
                 }
                 self.ticks_to_done = -1;
             }
@@ -106,6 +103,12 @@ impl Ram {
     #[inline]
     pub fn set_mmapctl(&mut self, data: u8) {
         self.data[MMC_ADDR as usize] = data;
+        // B7 = sequential disable. If set, the CPU will always use full cycles (5 ticks min), never a sequential cycle (4 ticks).
+        if data & 0b1000_0000 != 0 {
+            self.page_mode_enabled = false;
+        } else {
+            self.page_mode_enabled = true;
+        }
     }
 
     #[inline]
