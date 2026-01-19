@@ -8,13 +8,22 @@ use serde::{Deserialize, Serialize};
 
 pub const RAM_MAX: u16 = 0xffff;
 
+#[derive(Serialize, Deserialize, PartialEq)]
+pub enum RamState {
+    None,
+    Write,
+    ReadNormal,
+    ReadPage,
+    ReadDirty,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Ram {
     data: SharedMemory,
     addr_r: u16,
     data_r: u8,
     ticks_to_done: i8,
-    write: bool,
+    state: RamState,
     page_mode_enabled: bool,
 }
 
@@ -26,7 +35,7 @@ impl Ram {
             ticks_to_done: -1,
             addr_r: 0,
             data_r: 0,
-            write: false,
+            state: RamState::None,
             page_mode_enabled: true,
         };
         r.data[MMC_ADDR as usize] = 0;
@@ -54,22 +63,28 @@ impl Ram {
     }
 
     pub fn peek(&mut self, bus: &Bus) {
-        if self.page_mode_enabled && bus.addr() & 0xff00 == self.addr_r & 0xff00 {
+        let addr = bus.addr();
+        if self.page_mode_enabled
+            && [RamState::ReadNormal, RamState::ReadPage].contains(&self.state)
+            && addr & 0xfff0 == self.addr_r & 0xfff0
+            && addr == self.addr_r + 1
+        {
             self.ticks_to_done = RAM_PAGE_READ_TICKS;
-            trace!("Peek 0x{:04x} (page mode)", bus.addr());
+            self.state = RamState::ReadPage;
+            trace!("Peek 0x{:04x} (page mode)", addr);
         } else {
             self.ticks_to_done = RAM_NORMAL_READ_TICKS;
-            trace!("Peek 0x{:04x} (normal mode)", bus.addr());
+            self.state = RamState::ReadNormal;
+            trace!("Peek 0x{:04x} (normal mode)", addr);
         }
-        self.addr_r = bus.addr();
-        self.write = false;
+        self.addr_r = addr;
     }
 
     pub fn poke(&mut self, bus: &Bus) {
         self.ticks_to_done = RAM_NORMAL_WRITE_TICKS;
         self.addr_r = bus.addr();
-        self.write = true;
         self.data_r = bus.data();
+        self.state = RamState::Write;
         trace!("Poke 0x{:04x} = 0x{:02x}", self.addr_r, self.data_r);
     }
 
@@ -77,7 +92,7 @@ impl Ram {
         match self.ticks_to_done {
             -1 => (),
             0 => {
-                if self.write {
+                if self.state == RamState::Write {
                     match self.addr_r {
                         MMC_ADDR => self.set_mmapctl(self.data_r),
                         _ => self.data[self.addr_r as usize] = self.data_r,
@@ -111,9 +126,8 @@ impl Ram {
         }
     }
 
-    #[inline]
-    pub fn write(&self) -> bool {
-        self.write
+    pub fn dirty_page(&mut self) {
+        self.state = RamState::ReadDirty;
     }
 
     #[inline]
