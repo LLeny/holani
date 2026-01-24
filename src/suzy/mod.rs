@@ -3,7 +3,7 @@ pub mod registers;
 pub mod renderer;
 pub mod sprite_data;
 
-use super::{alloc, bus, consts, mikey, ram};
+use super::{alloc, bus, consts, ram};
 use bus::{Bus, BusStatus};
 use consts::{
     COLLADRL, COLLBASL, COLLOFFL, HOFFL, HPOSSTRTH, HPOSSTRTL, HSIZOFFL, JOYSTICK, LINE_END, MATHA,

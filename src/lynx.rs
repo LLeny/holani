@@ -2,18 +2,15 @@ use crate::bus::{Bus, BusStatus};
 use crate::cartridge::lnx_header::LNXRotation;
 use crate::cartridge::Cartridge;
 use crate::consts::{
-    INTV_ADDR_A, M6502_RDY, MAPCTL_MIK_BIT, MAPCTL_ROM_BIT, MAPCTL_SUZ_BIT, MAPCTL_VEC_BIT,
-    MIK_ADDR, MIK_ADDR_B, MMC_ADDR, MMC_ADDR_B, NMIV_ADDR, ROM_ADDR, ROM_ADDR_B, SUZ_ADDR,
-    SUZ_ADDR_B, TIM0BKUP,
+    INTV_ADDR_A, LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH, M6502_RDY, MAPCTL_MIK_BIT, MAPCTL_ROM_BIT,
+    MAPCTL_SUZ_BIT, MAPCTL_VEC_BIT, MIK_ADDR, MIK_ADDR_B, MMC_ADDR, MMC_ADDR_B, NMIV_ADDR,
+    ROM_ADDR, ROM_ADDR_B, SCREEN_BUFFER_LEN, SUZ_ADDR, SUZ_ADDR_B, TIM0BKUP,
 };
 #[cfg(not(feature = "comlynx_shared_memory"))]
 use crate::mikey::uart::comlynx_cable_mutex::ComlynxCable;
 #[cfg(feature = "comlynx_shared_memory")]
 use crate::mikey::uart::comlynx_cable_shared_memory::ComlynxCable;
-use crate::mikey::{
-    video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH},
-    Mikey,
-};
+use crate::mikey::Mikey;
 use crate::ram::{Ram, RAM_MAX};
 use crate::rom::Rom;
 use crate::shared_memory::SharedMemory;
@@ -22,7 +19,6 @@ use crate::suzy::{
     Suzy,
 };
 use crate::vectors::Vectors;
-use alloc::vec::Vec;
 use log::trace;
 use serde::{Deserialize, Serialize};
 
@@ -161,11 +157,7 @@ impl Lynx {
     pub fn peek(&mut self) {
         self.bus.set_status(BusStatus::Peek);
         self.mikey().cpu_pins().pin_on(M6502_RDY);
-        trace!(
-            "> Peek 0x{:04x}, bus:{:?}",
-            self.bus.addr(),
-            self.bus
-        );
+        trace!("> Peek 0x{:04x}, bus:{:?}", self.bus.addr(), self.bus);
         match self.bus.addr() {
             0..=SUZ_ADDR_B => self.ram.peek(&self.bus),
             SUZ_ADDR..=MIK_ADDR_B => {
@@ -238,11 +230,7 @@ impl Lynx {
     pub fn peek_ram(&mut self) {
         self.bus.set_status(BusStatus::Peek);
         self.mikey().cpu_pins().pin_on(M6502_RDY);
-        trace!(
-            "> Peek RAM 0x{:04x}, bus:{:?}",
-            self.bus.addr(),
-            self.bus
-        );
+        trace!("> Peek RAM 0x{:04x}, bus:{:?}", self.bus.addr(), self.bus);
         self.ram.peek(&self.bus);
     }
 
@@ -364,15 +352,15 @@ impl Lynx {
         self.switches_cache
     }
 
-    pub fn screen_size(&self) -> (u32, u32) {
+    pub fn screen_size(&self) -> (usize, usize) {
         match self.rotation() {
             LNXRotation::_270 | LNXRotation::_90 => (LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH),
             LNXRotation::None => (LYNX_SCREEN_WIDTH, LYNX_SCREEN_HEIGHT),
         }
     }
 
-    pub fn screen_rgba(&self) -> &Vec<u8> {
-        self.mikey.video().rgba_screen()
+    pub fn screen_argb(&self) -> &[u32; SCREEN_BUFFER_LEN] {
+        self.mikey.video().argb_screen()
     }
 
     pub fn rotation(&self) -> LNXRotation {
@@ -403,7 +391,7 @@ impl Lynx {
     }
 
     pub fn redraw_requested(&mut self) -> bool {
-        self.mikey.video_mut().redraw_requested()
+        self.mikey.video_mut().lcd_refreshed()
     }
 
     pub fn display_refresh_rate(&self) -> f64 {

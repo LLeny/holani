@@ -1,8 +1,7 @@
 use log::trace;
-use mikey::video::LYNX_SCREEN_WIDTH;
-
+use crate::consts::LYNX_SCREEN_WIDTH;
 use super::{
-    mikey, Deserialize, Serialize, SuzyRegisters, COLLADRL, COLLBASL, LINE_END, SPRCTL1_LITERAL,
+    Deserialize, Serialize, SuzyRegisters, COLLADRL, COLLBASL, LINE_END, SPRCTL1_LITERAL,
     SUZY_DATA_BUFFER_LEN, VIDADRL, VIDBASL,
 };
 

@@ -85,7 +85,7 @@ impl Uart {
             && regs.serctl_r_is_flag_set(SerCtlR::tx_empty)
         {
             if let Ok(Some(rx_data)) = self.ext_rx.as_ref().unwrap().try_recv() {
-                self.receive_register = Some(rx_data);
+                self.receive_register.push_back(rx_data);
                 regs.serctl_r_enable_flag(SerCtlR::rx_rdy);
                 regs.serctl_r_disable_flag(SerCtlR::par_err);
                 regs.serctl_r_disable_flag(SerCtlR::overrun);

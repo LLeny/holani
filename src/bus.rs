@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::mikey::MikeyBusOwner;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum BusStatus {
@@ -25,6 +26,7 @@ pub struct Bus {
     status: BusStatus,
     request: bool,
     grant: bool,
+    requester: Option<MikeyBusOwner>
 }
 
 impl Bus {
@@ -36,6 +38,7 @@ impl Bus {
             status: BusStatus::None,
             request: false,
             grant: true,
+            requester: None,
         }
     }
 
@@ -65,6 +68,12 @@ impl Bus {
 
     #[inline]
     #[must_use]
+    pub fn requester(&self) -> Option<MikeyBusOwner> {
+        self.requester
+    }
+
+    #[inline]
+    #[must_use]
     pub fn grant(&self) -> bool {
         self.grant
     }
@@ -87,6 +96,11 @@ impl Bus {
     #[inline]
     pub fn set_request(&mut self, request: bool) {
         self.request = request;
+    }
+
+    #[inline]
+    pub fn set_requester(&mut self, requestor: Option<MikeyBusOwner>) {
+        self.requester = requestor;
     }
 
     #[inline]

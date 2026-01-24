@@ -109,70 +109,15 @@ impl Timers {
         None
     }
 
-    #[inline]
-    #[allow(unreachable_code)]
-    pub fn check_if_triggered(&mut self, countdown_triggered: &mut [u16; 16]) {
-        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-        unsafe {
-            use core::arch::x86_64::{
-                _mm256_cmpeq_epi16, _mm256_loadu_si256, _mm256_set1_epi16, _mm256_storeu_si256,
-                _mm256_subs_epi16,
-            };
-
-            let countdowns = _mm256_loadu_si256(self.countdown.as_ptr() as *const _);
-            let ones = _mm256_set1_epi16(1);
-            let eq1 = _mm256_cmpeq_epi16(countdowns, ones);
-            let dec = _mm256_subs_epi16(countdowns, ones);
-
-            _mm256_storeu_si256(countdown_triggered.as_mut_ptr() as *mut _, eq1);
-            _mm256_storeu_si256(self.countdown.as_mut_ptr() as *mut _, dec);
-
-            return;
-        }
-
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        unsafe {
-            use core::arch::aarch64::*;
-            const ONE: u16 = 1;
-
-            let countdowns = vld2q_u16(self.countdown.as_ptr());
-            let ones = vld1q_dup_u16(&ONE);
-            let eq1 = vceqq_u16(countdowns.0, ones);
-            let eq2 = vceqq_u16(countdowns.1, ones);
-            let dec1 = vqsubq_u16(countdowns.0, ones);
-            let dec2 = vqsubq_u16(countdowns.1, ones);
-
-            vst1q_u16(countdown_triggered.as_mut_ptr(), eq1);
-            vst1q_u16(countdown_triggered.as_mut_ptr().add(16 * 8), eq2);
-
-            vst1q_u16(self.countdown.as_mut_ptr(), dec1);
-            vst1q_u16(self.countdown.as_mut_ptr().add(16 * 8), dec2);
-
-            return;
-        }
-
-        for (countdown, triggered) in self.countdown[0..TIMER_COUNT + AUDIO_TIMER_COUNT]
-            .iter_mut()
-            .zip(countdown_triggered[0..TIMER_COUNT + AUDIO_TIMER_COUNT].iter_mut())
-        {
-            *triggered = u16::from(*countdown == 1);
-            *countdown = (*countdown).saturating_sub(1);
-        }
-    }
-
     pub fn tick_all(&mut self) -> (u8, bool) {
         // bool: Timer 4 has a special treatment, triggered information without interrupt
         let mut int: u8 = 0;
-        let mut countdown_triggered: [u16; 16] = [0; 16];
         self.done[4] = false;
 
-        self.check_if_triggered(&mut countdown_triggered);
-
-        countdown_triggered[0..TIMER_COUNT + AUDIO_TIMER_COUNT]
-            .iter()
-            .enumerate()
-            .filter(|(_, &x)| x != 0)
-            .for_each(|(id, _)| {
+        for id in 0..TIMER_COUNT + AUDIO_TIMER_COUNT {
+            let triggered = self.countdown[id] == 1;
+            self.countdown[id] = self.countdown[id].saturating_sub(1);
+            if triggered {
                 int |= Self::tick_timer(
                     &mut self.timer,
                     &mut self.audio_reg,
@@ -180,7 +125,8 @@ impl Timers {
                     id,
                 );
                 self.update_timer_countdown(id);
-            });
+            }
+        }
 
         (int, self.done[4])
     }

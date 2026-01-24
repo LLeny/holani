@@ -3,7 +3,7 @@ mod eeprom;
 pub mod lnx_header;
 mod no_intro;
 
-use crate::{alloc, bus, consts, mikey, suzy, TO_U16};
+use crate::{alloc, bus, consts, mikey, suzy};
 use alloc::{string::String, vec::Vec};
 use bus::{Bus, BusStatus};
 use cartridge_generic::{CartridgeGeneric, _1024KAUDIN_PINS, _128K_PINS, _256K_PINS, _512K_PINS};

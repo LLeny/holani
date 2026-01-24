@@ -1,6 +1,8 @@
-use crate::{mikey, suzy};
+use crate::{
+    consts::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH},
+    suzy,
+};
 use log::trace;
-use mikey::video::{LYNX_SCREEN_HEIGHT, LYNX_SCREEN_WIDTH};
 use sprite_data::SpriteData;
 use suzy::{
     sprite_data, Deserialize, Ram, Serialize, SprSysR, SprSysW, SuzyRegisters, SuzyTask, TaskStep,

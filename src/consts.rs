@@ -25,17 +25,25 @@ The CPU makes use of the page mode circuitry in its op-code reads.
 All writes and all data reads are done in normal memory cycles.
 A page mode op-code read takes 4 ticks, a normal read or write to RAM takes 5 ticks."
 " */
-pub const RAM_NORMAL_READ_TICKS: i8 = 4;
-pub const RAM_NORMAL_WRITE_TICKS: i8 = 4;
-pub const RAM_PAGE_READ_TICKS: i8 = 3;
+pub const RAM_NORMAL_READ_TICKS: i8 = 5 - 1;
+pub const RAM_PAGE_READ_TICKS: i8 = 4 - 1;
+pub const RAM_NORMAL_WRITE_TICKS: i8 = 5 - 1;
 
 pub const MIKEY_TIMER_READ_TICKS: u16 = 5;
 pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5;
 pub const MIKEY_READ_TICKS: u16 = 5;
 pub const MIKEY_WRITE_TICKS: u16 = 5;
 
+pub const LYNX_SCREEN_WIDTH: usize = 160;
+pub const LYNX_SCREEN_HEIGHT: usize = 102;
+pub const SCREEN_BUFFER_LEN: usize = LYNX_SCREEN_WIDTH * LYNX_SCREEN_HEIGHT;
 pub const REFRESH_AND_VIDEO_DMA_TICKS: u16 = 28;
 pub const VIDEO_DMA_BUFFER_LENGTH: usize = 8;
+pub const VIDEO_DMA_TICK_PERIOD: isize = 192;
+pub const VIDEO_DMA_PER_ROW: usize = LYNX_SCREEN_WIDTH / 2 / VIDEO_DMA_BUFFER_LENGTH;
+pub const LCD_PIXEL_TICK_PERIOD: isize = 12; 
+pub const SINGLE_REFRESH_PERIOD: isize = 256;
+pub const SINGLE_REFRESH_TICKS: u16 = 5;
 
 /*
 Cycle                              Min       Max

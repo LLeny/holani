@@ -129,7 +129,7 @@ impl Timer {
         self.reload_enabled = value & CTRLA_ENABLE_RELOAD_BIT != 0;
 
         if !self.is_linked && self.count_enabled {
-            self.tick_countdown = 1 + self.clock_ticks.unwrap();
+            self.tick_countdown = self.clock_ticks.unwrap() / 2;
             trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
         } else {
             self.tick_countdown = 0;
@@ -173,7 +173,7 @@ impl Timer {
         trace!("Timer #{} count = {}.", self.id, value);
         self.count = value;
         if !self.is_linked && self.count_enabled && value != 0 {
-            self.tick_countdown = 1 + self.clock_ticks.unwrap();
+            self.tick_countdown = self.clock_ticks.unwrap() / 2;
             trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
         }
     }
@@ -217,7 +217,7 @@ impl Timer {
 
     #[inline]
     pub fn reset_tick_countdown(&mut self) {
-        self.tick_countdown = 1 + self.clock_ticks.unwrap();
+        self.tick_countdown = self.clock_ticks.unwrap();
     }
 
     #[inline]

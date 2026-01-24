@@ -1,10 +1,17 @@
 pub mod cpu;
+pub mod display;
 pub mod registers;
 pub mod timers;
 pub mod uart;
-pub mod video;
 
-use crate::{alloc, bus, cartridge, consts, ram, rom};
+use crate::{
+    alloc, bus, cartridge,
+    consts::{
+        self, LYNX_SCREEN_HEIGHT, SINGLE_REFRESH_PERIOD, SINGLE_REFRESH_TICKS, VIDEO_DMA_PER_ROW,
+        VIDEO_DMA_TICK_PERIOD,
+    },
+    ram, rom,
+};
 use alloc::vec::Vec;
 use bus::{Bus, BusStatus};
 use cartridge::Cartridge;
@@ -18,7 +25,8 @@ use consts::{
     TIM4CTLA, VIDEO_DMA_BUFFER_LENGTH,
 };
 use cpu::{CPUPins, M6502Flags, M6502};
-use log::{info, trace};
+use display::Display;
+use log::trace;
 use ram::Ram;
 use registers::{MikeyRegisters, SerCtlR, SerCtlW};
 use rom::Rom;
@@ -28,7 +36,6 @@ use timers::Timers;
 use uart::{comlynx_cable_mutex::ComlynxCable, Uart};
 #[cfg(feature = "comlynx_shared_memory")]
 use uart::{comlynx_cable_shared_memory::ComlynxCable, Uart};
-use video::Video;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MikeyInstruction {
@@ -59,7 +66,75 @@ pub enum MikeyInstruction {
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MikeyBusOwner {
     RefreshAndVideo,
+    Refresh,
     Cpu,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct VideoDMA {
+    pub ptr: usize,
+    pub delay: isize,
+    pub row_dma_count: usize,
+    pub flipped_display: isize,
+}
+
+impl Default for VideoDMA {
+    fn default() -> Self {
+        Self {
+            ptr: 0,
+            delay: 0,
+            row_dma_count: 0,
+            flipped_display: 1,
+        }
+    }
+}
+
+impl VideoDMA {
+    pub fn reset(&mut self) {
+        self.ptr = 0;
+        self.delay = 0;
+        self.row_dma_count = 0;
+        self.flipped_display = 1;
+    }
+
+    pub fn hsync(&mut self) {
+        self.row_dma_count = 0;
+        self.delay = 0;
+    }
+
+    pub fn vsync(&mut self, regs: &MikeyRegisters) {
+        self.ptr = usize::from(regs.disp_addr());
+        self.flipped_display = if regs.is_flipped() { -1 } else { 1 };
+    }
+
+    pub fn request(&mut self) {
+        self.delay = VIDEO_DMA_TICK_PERIOD;
+    }
+
+    pub fn tick(&mut self) {
+        self.delay -= 1;
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.row_dma_count < VIDEO_DMA_PER_ROW && self.delay <= 0
+    }
+
+    pub fn is_flipped(&self) -> bool {
+        self.flipped_display < 0
+    }
+
+    pub fn get_buffer_offset(&self, offset: usize) -> u16 {
+        (offset as isize * self.flipped_display + self.ptr as isize) as u16
+    }
+
+    pub fn consume(&mut self) {
+        self.row_dma_count += 1;
+        self.ptr = if self.is_flipped() {
+            self.ptr.wrapping_sub(VIDEO_DMA_BUFFER_LENGTH)
+        } else {
+            self.ptr.wrapping_add(VIDEO_DMA_BUFFER_LENGTH)
+        };
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -71,10 +146,10 @@ pub struct Mikey {
     ticks: u64,
     registers: MikeyRegisters,
     bus_owner: MikeyBusOwner,
-    video: Video,
-    video_buffer_curr_addr: usize,
-    disp_addr: usize,
-    flipped: i8,
+    bus_request: Option<MikeyBusOwner>,
+    display: Display,
+    video_dma: VideoDMA,
+    refresh_delay: isize,
     bus_grant_bkup: Option<bool>,
     comlynx_cable_present: bool,
 }
@@ -89,11 +164,11 @@ impl Mikey {
             ticks: 0,
             timers: Timers::new(),
             registers: MikeyRegisters::new(),
-            video: Video::new(),
-            video_buffer_curr_addr: 0,
-            disp_addr: 0,
-            flipped: 1,
+            display: Display::new(),
+            video_dma: VideoDMA::default(),
+            refresh_delay: SINGLE_REFRESH_PERIOD,
             bus_owner: MikeyBusOwner::Cpu,
+            bus_request: None,
             bus_grant_bkup: None,
             comlynx_cable_present: false,
         }
@@ -105,8 +180,8 @@ impl Mikey {
         self.ticks = 0;
         self.timers = Timers::new();
         self.registers = MikeyRegisters::new();
-        self.video = Video::new();
-        self.video_buffer_curr_addr = 0;
+        self.display = Display::new();
+        self.video_dma.reset();
         self.bus_owner = MikeyBusOwner::Cpu;
         self.uart.reset();
     }
@@ -154,10 +229,28 @@ impl Mikey {
 
         if let Some(hsync_count) = self.timers.hsync() {
             trace!("hsync {}", self.ticks);
-            self.video.hsync(hsync_count, &self.registers);
+            self.display.hsync(hsync_count as usize);
+            self.video_dma.hsync();
+            if hsync_count == LYNX_SCREEN_HEIGHT as u8 + 2 {
+                self.video_dma.vsync(&self.registers);
+            }
         }
 
-        self.video.tick();
+        self.display.tick(&self.registers);
+        self.video_dma.tick();
+
+        if self.display.is_dma_active() {
+            if self.video_dma.is_ready() && self.cpu_pins.is_set(M6502_SYNC) {
+                self.bus_request = Some(MikeyBusOwner::RefreshAndVideo);
+                self.video_dma.request();
+            }
+        } else {
+            self.refresh_delay -= 1;
+            if self.refresh_delay <= 0 && self.cpu_pins.is_set(M6502_SYNC) {
+                self.bus_request = Some(MikeyBusOwner::Refresh);
+                self.refresh_delay = SINGLE_REFRESH_PERIOD;
+            }
+        }
 
         if int != 0 {
             int |= self.registers.data(INTSET);
@@ -178,6 +271,48 @@ impl Mikey {
             self.handle_mikey_bus_owner(bus);
         }
 
+        if bus.status() == BusStatus::None {
+            match self.bus_request {
+                Some(MikeyBusOwner::RefreshAndVideo) => {
+                    if bus.grant() {
+                        self.bus_request = None;
+                        bus.set_requester(Some(MikeyBusOwner::RefreshAndVideo));
+                    } else if !bus.request() {
+                        bus.set_request(true);
+                        trace!("Bus requested by Video");
+                        self.bus_grant_bkup = Some(false);
+                    }
+                }
+                Some(MikeyBusOwner::Refresh) => {
+                    if bus.grant() {
+                        self.bus_request = None;
+                        bus.set_requester(Some(MikeyBusOwner::Refresh));
+                    } else if !bus.request() {
+                        bus.set_request(true);
+                        trace!("Bus requested by refresh");
+                        self.bus_grant_bkup = Some(false);
+                    }
+                }
+                _ => (),
+            };
+        }
+
+        match bus.requester() {
+            Some(MikeyBusOwner::Refresh) => {
+                self.bus_owner = MikeyBusOwner::Refresh;
+                self.registers.set_ticks_delay(SINGLE_REFRESH_TICKS);
+                bus.set_requester(None);
+                trace!("[{}] Refresh taking bus.", self.ticks);
+            }
+            Some(MikeyBusOwner::RefreshAndVideo) => {
+                self.bus_owner = MikeyBusOwner::RefreshAndVideo;
+                self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
+                bus.set_requester(None);
+                trace!("[{}] Video/Refresh taking bus.", self.ticks);
+            }
+            _ => (),
+        }
+
         match self.bus_owner {
             MikeyBusOwner::Cpu => {
                 if self.cpu.flags().contains(M6502Flags::I) || self.registers.data(INTSET) == 0 {
@@ -186,7 +321,11 @@ impl Mikey {
                     self.cpu_pins.pin_on(M6502_IRQ);
                 }
 
-                if bus.grant() { self.cpu_pins.pin_off(M6502_RDY) } else { self.cpu_pins.pin_on(M6502_RDY) }
+                if bus.grant() {
+                    self.cpu_pins.pin_off(M6502_RDY)
+                } else {
+                    self.cpu_pins.pin_on(M6502_RDY)
+                }
 
                 if self.registers.ir() != MikeyInstruction::None {
                     self.process_ir_step(bus, cart);
@@ -196,18 +335,26 @@ impl Mikey {
                     self.cpu_tick(bus);
                 }
             }
+            MikeyBusOwner::Refresh => {
+                self.bus_owner = MikeyBusOwner::Cpu;
+                bus.set_status(BusStatus::None);
+                if let Some(grant) = self.bus_grant_bkup.take() {
+                    trace!("Refresh set bus grant: {grant}");
+                    bus.set_grant(grant);
+                }
+                trace!("[{}] Refresh done.", self.ticks);
+            }
             MikeyBusOwner::RefreshAndVideo => {
-                
-                let mut pixs: Vec<u8> = 
-                (0..VIDEO_DMA_BUFFER_LENGTH as i32)
-                    .map(|i| dma_ram.get((i * i32::from(self.flipped) + self.video_buffer_curr_addr as i32) as u16))
+                let mut pixs: Vec<u8> = (0..VIDEO_DMA_BUFFER_LENGTH)
+                    .map(|i| dma_ram.get(self.video_dma.get_buffer_offset(i)))
                     .collect();
 
-                if self.flipped < 0 {
+                if self.video_dma.is_flipped() {
                     pixs = pixs.iter().map(|b| b.rotate_right(4)).collect();
                 }
 
-                self.video.push_pix_buffer(&pixs);
+                self.display.push_video_dma_burst(&pixs);
+                self.video_dma.consume();
 
                 self.bus_owner = MikeyBusOwner::Cpu;
                 bus.set_status(BusStatus::None);
@@ -248,35 +395,8 @@ impl Mikey {
             }
             _ => (),
         }
-    
-        if bus.status() != BusStatus::None {
-            return;
-        }
-            
-        if let Some(screen_pixel_base) = self.video.required_bytes() {
-            if bus.grant() {
-                if screen_pixel_base == 0 {
-                    self.disp_addr = usize::from(self.registers.disp_addr());
-                    self.flipped = if self.registers.is_flipped() { -1 } else { 1 };
-                }
-                self.bus_owner = MikeyBusOwner::RefreshAndVideo;
-                self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
-                self.video_buffer_curr_addr = (self.disp_addr as isize + isize::from(self.flipped) * screen_pixel_base as isize) as usize;
-                trace!(
-                    "[{}] Need pixels @ 0x{:04X} (0x{:04X}+0x{:04X})",
-                    self.ticks,
-                    self.video_buffer_curr_addr,
-                    self.registers.disp_addr(),
-                    screen_pixel_base
-                );
-            } else if !bus.request() {
-                bus.set_request(true);
-                trace!("Bus requested by Video");
-                self.bus_grant_bkup = Some(false);
-            }
-        }
     }
-    
+
     #[must_use]
     pub fn get(&self, addr: u16) -> u8 {
         self.registers.data(addr)
@@ -381,7 +501,9 @@ impl Mikey {
                 self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
             }
             PBKUP => {
-                self.registers.set_data_r(u16::from(bus.data()));
+                let data = bus.data();
+                self.display.set_pbkup(data);
+                self.registers.set_data_r(u16::from(data));
                 self.registers.set_ir(MikeyInstruction::PokePbkup);
                 self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
             }
@@ -590,12 +712,6 @@ impl Mikey {
 
         if new & SYSCTL1_POWER != 0 && prev & SYSCTL1_CAS == 0 && new & SYSCTL1_CAS != 0 {
             self.registers.shift_cart_shift(b);
-            info!(
-                "{:04X};{:04X};{:02X}",
-                self.registers.cart_shift(),
-                self.registers.cart_position(),
-                b
-            );
             cart.write_address_to_pins(
                 self.registers.cart_shift(),
                 self.registers.cart_position(),
@@ -606,7 +722,6 @@ impl Mikey {
 
     fn iodat_updated(&mut self, cart: &mut Cartridge) {
         let new = self.registers.data_r() as u8;
-        info!("o{:02X};{:04X};{}", new, self.cpu().last_ir_pc, self.ticks);
         self.registers.set_data(IODAT, new);
 
         let b = u16::from(self.registers.data(IODAT) & IODAT_AUDIN != 0);
@@ -664,13 +779,13 @@ impl Mikey {
         (left as i16, right as i16)
     }
 
-    pub fn video_mut(&mut self) -> &mut Video {
-        &mut self.video
+    pub fn video_mut(&mut self) -> &mut Display {
+        &mut self.display
     }
 
     #[must_use]
-    pub fn video(&self) -> &Video {
-        &self.video
+    pub fn video(&self) -> &Display {
+        &self.display
     }
 
     #[cfg(not(feature = "comlynx_shared_memory"))]
@@ -678,6 +793,7 @@ impl Mikey {
         self.uart.set_cable(cable);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn uart_mut(&mut self) -> &mut Uart {
         &mut self.uart
     }

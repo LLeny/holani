@@ -89,9 +89,7 @@ pub struct MikeyRegisters {
     serctl_w: SerCtlW,
     dispctl: DispCtl,
     is_flipped: bool,
-    palette_r: [u8; 16],
-    palette_g: [u8; 16],
-    palette_b: [u8; 16],
+    palette: [u32; 16],
     attenuation_left: [f32; 4],
     attenuation_right: [f32; 4],
 }
@@ -112,9 +110,7 @@ impl MikeyRegisters {
             serctl_w: SerCtlW::empty(),
             dispctl: DispCtl::fourbit | DispCtl::dma_enable,
             is_flipped: false,
-            palette_r: [0; 16],
-            palette_g: [0; 16],
-            palette_b: [0; 16],
+            palette: [0; 16],
             attenuation_left: [0.; 4],
             attenuation_right: [0.; 4],
         };
@@ -155,18 +151,8 @@ impl MikeyRegisters {
     }
 
     #[must_use]
-    pub fn palette_r(&self) -> &[u8; 16] {
-        &self.palette_r
-    }
-
-    #[must_use]
-    pub fn palette_g(&self) -> &[u8; 16] {
-        &self.palette_g
-    }
-
-    #[must_use]
-    pub fn palette_b(&self) -> &[u8; 16] {
-        &self.palette_b
+    pub fn palette(&self) -> &[u32; 16] {
+        &self.palette
     }
 
     #[must_use]
@@ -191,22 +177,22 @@ impl MikeyRegisters {
     }
 
     fn update_pen(&mut self, pen_index: u16) {
-        let bluered = self.data(BLUERED0 + pen_index);
-        let green = self.data(GREEN0 + pen_index);
-        self.palette_r[pen_index as usize] = (bluered & 0xf) * 16;
-        self.palette_g[pen_index as usize] = (green & 0xf) * 16;
-        self.palette_b[pen_index as usize] = (bluered >> 4) * 16;
+        let bluered = self.data(BLUERED0 + pen_index) as u32;
+        let green = self.data(GREEN0 + pen_index) as u32;
+        self.palette[pen_index as usize] = 0xFF_00_00_00u32
+            | (bluered & 0xf) * 16 << 16
+            | (green & 0xf) * 16 << 8
+            | (bluered >> 4) * 16;
+        trace!(
+            "Updated pen {}: ARGB=0x{:08X}",
+            pen_index, self.palette[pen_index as usize],
+        );
     }
 
     #[inline]
     #[must_use]
-    pub fn get_pen(&self, pen_index: u8) -> [u8; 4] {
-        [
-            self.palette_r[pen_index as usize],
-            self.palette_g[pen_index as usize],
-            self.palette_b[pen_index as usize],
-            0xFF,
-        ]
+    pub fn get_argb_pen(&self, pen_index: usize) -> u32 {
+        self.palette[pen_index]
     }
 
     #[must_use]

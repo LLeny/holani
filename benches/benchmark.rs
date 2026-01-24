@@ -6,18 +6,15 @@ fn criterion_benchmark_timers(c: &mut Criterion) {
 }
 
 fn criterion_benchmark_video(c: &mut Criterion) {
-    let mut video = holani::mikey::video::Video::new();
-    let regs = holani::mikey::registers::MikeyRegisters::new();
+    let mut video = holani::mikey::display::Display::new();
 
     c.bench_function("video: push_pix_buffer", |b| {
-        b.iter(|| video.push_pix_buffer(&[0, 1, 2, 3, 4, 5, 6, 7]));
+        b.iter(|| video.push_video_dma_burst(&[0, 1, 2, 3, 4, 5, 6, 7]));
     });
 
-    c.bench_function("video: send_row_buffer", |b| {
+    c.bench_function("video: reset", |b| {
         b.iter(|| {
             video.draw_buffer().reset();
-            video.display_row_index = 160;
-            video.send_row_buffer(&regs);
         });
     });
 }
