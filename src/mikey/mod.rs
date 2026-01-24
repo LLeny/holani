@@ -231,7 +231,7 @@ impl Mikey {
             trace!("hsync {}", self.ticks);
             self.display.hsync(hsync_count as usize);
             self.video_dma.hsync();
-            if hsync_count == LYNX_SCREEN_HEIGHT as u8 + 1 {
+            if hsync_count == LYNX_SCREEN_HEIGHT as u8 {
                 self.video_dma.vsync(&self.registers);
             }
         }

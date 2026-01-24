@@ -50,7 +50,7 @@ impl LCD {
         trace!("reset buf index:{}", self.buffer_index);
         self.buffer_index = 0;
         self.pixel_pen_buffer.clear();
-        self.hsync(LYNX_SCREEN_HEIGHT + 3);
+        self.hsync(LYNX_SCREEN_HEIGHT + 2);
     }
 
     fn push_pixel(&mut self, pix: u32) {
