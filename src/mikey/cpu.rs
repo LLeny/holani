@@ -525,6 +525,11 @@ impl M6502 {
         self.break_flags
     }
 
+    #[must_use]
+    const fn suppresses_next_irq(opcode: u8) -> bool {
+        matches!(opcode & 0x0F, 0x03 | 0x0B)
+    }
+
     #[must_use] 
     pub fn pins(&self) -> CPUPins {
         self.pins
@@ -554,6 +559,8 @@ impl M6502 {
             }
 
             if ps.is_set(M6502_SYNC) {
+                let prev_ir = self.ir;
+
                 self.ir = ps.gd();
                 self.ir_step = 0;
                 ps.pin_off(M6502_SYNC);
@@ -568,7 +575,9 @@ impl M6502 {
                 //  - RES behaves slightly different than on a real 6502, we go
                 //    into RES state as soon as the pin goes active, from there
                 //    on, behaviour is 'standard'
-                if 0 != (self.irq_pip & 0x400) {
+                if 0 != (self.irq_pip & 0x400)
+                    && !Self::suppresses_next_irq(prev_ir)
+                {
                     self.break_flags |= M6502BreakFlags::IRQ;
                 }
                 if 0 != (self.nmi_pip & 0xFC00) {
