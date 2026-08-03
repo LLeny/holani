@@ -20,6 +20,7 @@ pub struct Timer {
     is_linked: bool,
     count_enabled: bool,
     reload_enabled: bool,
+    pending_ticks: u8,
 }
 
 impl Timer {
@@ -38,6 +39,7 @@ impl Timer {
             is_linked: false,
             count_enabled: false,
             reload_enabled: false,
+            pending_ticks: 0,
         }
     }
 
@@ -154,6 +156,11 @@ impl Timer {
         self.control_b = value & 0xF8;
     }
 
+    #[inline]
+    pub fn set_control_b_hi(&mut self, value: u8) {
+        self.control_b = (self.control_b & 0x0F) | (value & 0xF0);
+    }
+
     pub fn clear_borrows(&mut self) {
         self.control_b &= !(CTRLB_BORROW_IN_BIT | CTRLB_BORROW_OUT_BIT);
     }
@@ -218,6 +225,18 @@ impl Timer {
     #[inline]
     pub fn reset_tick_countdown(&mut self) {
         self.tick_countdown = self.clock_ticks.unwrap();
+    }
+
+    #[inline]
+    pub fn add_pending_tick(&mut self) {
+        self.pending_ticks += 1;
+    }
+
+    #[inline]
+    pub fn take_pending_ticks(&mut self) -> u8 {
+        let pending = self.pending_ticks;
+        self.pending_ticks = 0;
+        pending
     }
 
     #[inline]

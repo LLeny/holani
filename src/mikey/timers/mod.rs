@@ -115,15 +115,33 @@ impl Timers {
         self.done[4] = false;
 
         for id in 0..TIMER_COUNT + AUDIO_TIMER_COUNT {
+            self.timer[id].clear_borrows();
+        }
+
+        for id in 0..TIMER_COUNT {
+            let pending = self.timer[id].take_pending_ticks();
+            for _ in 0..pending {
+                int |= Self::tick_timer(&mut self.timer, &mut self.audio_reg, &mut self.done, id);
+            }
+
             let triggered = self.countdown[id] == 1;
             self.countdown[id] = self.countdown[id].saturating_sub(1);
             if triggered {
-                int |= Self::tick_timer(
-                    &mut self.timer,
-                    &mut self.audio_reg,
-                    &mut self.done,
-                    id,
-                );
+                int |= Self::tick_timer(&mut self.timer, &mut self.audio_reg, &mut self.done, id);
+                self.update_timer_countdown(id);
+            }
+        }
+
+        for id in TIMER_COUNT..TIMER_COUNT + AUDIO_TIMER_COUNT {
+            let pending = self.timer[id].take_pending_ticks();
+            for _ in 0..pending {
+                int |= Self::tick_timer(&mut self.timer, &mut self.audio_reg, &mut self.done, id);
+            }
+
+            let triggered = self.countdown[id] == 1;
+            self.countdown[id] = self.countdown[id].saturating_sub(1);
+            if triggered {
+                int |= Self::tick_timer(&mut self.timer, &mut self.audio_reg, &mut self.done, id);
                 self.update_timer_countdown(id);
             }
         }
@@ -137,46 +155,51 @@ impl Timers {
         dones: &mut [bool],
         id: usize,
     ) -> u8 {
-        let timer = &mut timers[id];
+        let (linked_id, int) = {
+            let timer = &mut timers[id];
 
-        timer.clear_borrows();
+            if timer.control_a() & CTRLA_RESET_DONE_BIT != 0 {
+                timer.reset_timer_done();
+            }
 
-        if timer.control_a() & CTRLA_RESET_DONE_BIT != 0 {
-            timer.reset_timer_done();
-        }
-
-        if !timer.reload_enabled() && timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
-            dones[id] = false;
-            return 0;
-        }
-
-        if !timer.is_linked() {
-            if !timer.count_enabled() || (is_audio!(id) && audio_regs[id - TIMER_COUNT].disabled())
-            {
-                timer.disable_tick_countdown();
+            if !timer.reload_enabled() && timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
                 dones[id] = false;
                 return 0;
             }
-            timer.reset_tick_countdown();
-        }
 
-        let mut int: u8;
-        let audio = if is_audio!(id) {
-            Some(&mut audio_regs[id - TIMER_COUNT])
-        } else {
-            None
+            if !timer.is_linked() {
+                if !timer.count_enabled()
+                    || (is_audio!(id) && audio_regs[id - TIMER_COUNT].disabled())
+                {
+                    timer.disable_tick_countdown();
+                    dones[id] = false;
+                    return 0;
+                }
+                timer.reset_tick_countdown();
+            }
+
+            timer.clear_borrows();
+            timer.set_control_b_flags(CTRLB_BORROW_IN_BIT);
+
+            let audio = if is_audio!(id) {
+                Some(&mut audio_regs[id - TIMER_COUNT])
+            } else {
+                None
+            };
+            let (done, int) = Self::timer_count_down(timer, audio);
+            dones[id] = done;
+
+            if !done {
+                return 0;
+            }
+
+            (timer.linked_timer().map(|lid| lid.get() as usize), int)
         };
-        (dones[id], int) = Self::timer_count_down(timer, audio);
 
-        if !dones[id] {
-            return 0;
-        }
-
-        if let Some(lid) = timer.linked_timer() {
-            let linked_id = lid.get() as usize;
+        if let Some(linked_id) = linked_id {
             if timers[linked_id].is_linked() {
-                trace!("Timer #{id}, trigger linked timer #{linked_id}");
-                int |= Self::tick_timer(timers, audio_regs, dones, linked_id);
+                trace!("Timer #{id}, queue tick to linked timer #{linked_id}");
+                timers[linked_id].add_pending_tick();
             }
         }
 
@@ -197,11 +220,11 @@ impl Timers {
                     timer.tick_countdown()
                 );
                 timer.set_count_transparent(timer.backup());
-            } else {
+            } else if timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
+                timer.disable_tick_countdown();
+            }
+            if !timer.is_linked() {
                 timer.set_last_clock();
-                if timer.control_b() & CTRLB_TIMER_DONE_BIT != 0 {
-                    timer.disable_tick_countdown();
-                }
             }
             timer.set_control_b_flags(CTRLB_TIMER_DONE_BIT | CTRLB_BORROW_OUT_BIT);
             return (
@@ -214,7 +237,6 @@ impl Timers {
             );
         }
         timer.set_count_transparent(count - 1);
-        timer.set_control_b_flags(CTRLB_BORROW_IN_BIT);
         timer.reset_last_clock();
         (false, 0)
     }

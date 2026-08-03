@@ -104,10 +104,8 @@ impl AudioTimerRegisters {
     pub fn set_audio_shift_register(&mut self, timer: &mut Timer, value: u16) {
         trace!("AudioTimerRegisters shift register = {value}.");
         self.shift_register = value as u8;
-        let mut ctrlb = timer.control_b();
-        ctrlb &= !0b1111_0000; // B7=shift register bit 11, B6=shift register bit 10, B5=shift register bit 9, B4=shift register bit 8
-        ctrlb |= ((value & 0b0000_1111_0000_0000) >> 4) as u8;
-        timer.set_control_b(ctrlb);
+        let hi = ((value & 0b0000_1111_0000_0000) >> 4) as u8;
+        timer.set_control_b_hi(hi);
     }
 
     #[inline]
