@@ -161,13 +161,22 @@ impl SuzyRegisters {
 
     #[inline]
     #[must_use]
+    const fn reg_mirror(addr: u16) -> u16 {
+        match addr {
+            0xFC40..=0xFC6F => addr - 0x40,
+            _ => addr,
+        }
+    }
+
+    #[inline]
+    #[must_use]
     pub fn data(&self, addr: u16) -> u8 {
-        self.data[(addr - SUZ_ADDR) as usize]
+        self.data[(Self::reg_mirror(addr) - SUZ_ADDR) as usize]
     }
 
     #[inline]
     pub fn set_data(&mut self, addr: u16, data: u8) {
-        self.data[(addr - SUZ_ADDR) as usize] = data;
+        self.data[(Self::reg_mirror(addr) - SUZ_ADDR) as usize] = data;
     }
 
     #[inline]
