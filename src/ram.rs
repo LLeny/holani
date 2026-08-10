@@ -71,11 +71,11 @@ impl Ram {
         {
             self.ticks_to_done = RAM_PAGE_READ_TICKS;
             self.state = RamState::ReadPage;
-            trace!("Peek 0x{:04x} (page mode)", addr);
+            trace!("Peek 0x{addr:04x} (page mode)");
         } else {
             self.ticks_to_done = RAM_NORMAL_READ_TICKS;
             self.state = RamState::ReadNormal;
-            trace!("Peek 0x{:04x} (normal mode)", addr);
+            trace!("Peek 0x{addr:04x} (normal mode)");
         }
         self.addr_r = addr;
     }
@@ -119,11 +119,7 @@ impl Ram {
     pub fn set_mmapctl(&mut self, data: u8) {
         self.data[MMC_ADDR as usize] = data;
         // B7 = sequential disable. If set, the CPU will always use full cycles (5 ticks min), never a sequential cycle (4 ticks).
-        if data & 0b1000_0000 != 0 {
-            self.page_mode_enabled = false;
-        } else {
-            self.page_mode_enabled = true;
-        }
+        self.page_mode_enabled = data & 0b1000_0000 == 0;
     }
 
     pub fn dirty_page(&mut self) {
