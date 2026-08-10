@@ -1,29 +1,34 @@
 pub mod math;
 pub mod registers;
 pub mod renderer;
+pub mod row_pipeline;
 pub mod sprite_data;
+pub mod step_queue;
 
 use super::{alloc, bus, consts, ram};
 use bus::{Bus, BusStatus};
 use consts::{
     COLLADRL, COLLBASL, COLLOFFL, HOFFL, HPOSSTRTH, HPOSSTRTL, HSIZOFFL, JOYSTICK, LINE_END, MATHA,
-    MATHB, MATHC, MATHD, MATHE, MATHF, MATHH, MATHK, MATHM, MATHP, PROCADRL, RAM_PAGE_READ_TICKS,
-    RCART0, RCART1, SCBADRL, SCBNEXTH, SCBNEXTL, SPRCOLL, SPRCOLL_DONT_COLLIDE, SPRCOLL_NUMBER,
-    SPRCTL0, SPRCTL0_BPP, SPRCTL0_HFLIP, SPRCTL0_SPR_TYPE, SPRCTL0_VFLIP, SPRCTL1,
-    SPRCTL1_DRAW_QUAD, SPRCTL1_LITERAL, SPRCTL1_RELOAD_HVS, SPRCTL1_RELOAD_HVST,
-    SPRCTL1_REUSE_PALETTE, SPRCTL1_SKIP_SPRITE, SPRDLINEH, SPRDLINEL, SPRDOFFL, SPRGO,
-    SPRGO_EVERON, SPRGO_GO, SPRHSIZH, SPRHSIZL, SPRSYS, SPRVPOSL, SPRVSIZH, SPRVSIZL, STRETCHH,
-    STRETCHL, SUZYBUSEN, SUZYHREV, SUZY_BUS_GRANT_TICKS, SUZY_DATA_BUFFER_LEN, SUZY_READ_TICKS,
-    SUZY_SPRITE_SCB_ADDITIONAL_COST, SUZY_SPRITE_VERT_ADDITIONAL_COST, SUZY_WRITE_TICKS, SUZ_ADDR,
-    SWITCHES, TILTACUMH, TILTACUML, TILTH, TILTL, TMPADRL, VIDADRL, VIDBASL, VOFFL,
-    VPOSSTRTH, VPOSSTRTL, VSIZACUMH, VSIZACUML, VSIZOFFL,
+    MATHB, MATHC, MATHD, MATHE, MATHF, MATHH, MATHK, MATHM, MATHP, PROCADRL, RCART0, RCART1,
+    SCBADRL, SCBNEXTH, SCBNEXTL, SPRCOLL, SPRCOLL_DONT_COLLIDE, SPRCOLL_NUMBER, SPRCTL0,
+    SPRCTL0_BPP, SPRCTL0_HFLIP, SPRCTL0_SPR_TYPE, SPRCTL0_VFLIP, SPRCTL1, SPRCTL1_DRAW_QUAD,
+    SPRCTL1_LITERAL, SPRCTL1_RELOAD_HVS, SPRCTL1_RELOAD_HVST, SPRCTL1_REUSE_PALETTE,
+    SPRCTL1_SKIP_SPRITE, SPRDLINEH, SPRDLINEL, SPRDOFFL, SPRGO, SPRGO_EVERON, SPRGO_GO, SPRHSIZH,
+    SPRHSIZL, SPRSYS, SPRVPOSL, SPRVSIZH, SPRVSIZL, STRETCHH, STRETCHL, SUZYBUSEN, SUZYHREV,
+    SUZY_BUS_GRANT_TICKS, SUZY_DATA_BUFFER_LEN, SUZY_READ_TICKS, SUZY_WRITE_TICKS, SUZ_ADDR,
+    SWITCHES, TILTACUMH, TILTACUML, TILTH, TILTL, TMPADRL, VIDADRL, VIDBASL, VOFFL, VPOSSTRTH,
+    VPOSSTRTL, VSIZACUMH, VSIZACUML, VSIZOFFL,
 };
 use log::trace;
 use math::{divide, multiply, set_matha, set_mathc, set_mathe, set_mathm};
 use ram::Ram;
 use registers::{Joystick, SprSysR, SprSysW, SuzyRegisters, Switches, TaskStep};
+use row_pipeline::SUZY_RAM_READ_TICKS;
 use renderer::Renderer;
 use serde::{Deserialize, Serialize};
+use step_queue::StepKind;
+
+const SUZY_LCD_DMA_OVERLAPPABLE_TICKS: u8 = 22;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SuzyInstruction {
@@ -54,6 +59,8 @@ pub enum SuzyTask {
 pub struct Suzy {
     request_monitor: bool,
     pending_bus_request_ticks: i8,
+    bus_hold_overlap: u8,
+    sprite_done: bool,
     renderer: Renderer,
     registers: SuzyRegisters
 }
@@ -64,6 +71,8 @@ impl Suzy {
         let mut s = Self {
             request_monitor: true,
             pending_bus_request_ticks: -1,
+            bus_hold_overlap: 0,
+            sprite_done: false,
             renderer: Renderer::new(),
             registers: SuzyRegisters::new(),
         };
@@ -184,6 +193,10 @@ impl Suzy {
         bus.set_grant(true);
         bus.set_request(false);
         self.request_monitor = false;
+        self.bus_hold_overlap = SUZY_LCD_DMA_OVERLAPPABLE_TICKS;
+        if self.registers.sprsys_r_is_flag_set(SprSysR::sprite_working) {
+            self.renderer.notify_bus_grant();
+        }
         trace!(
             "Releasing bus, grant:{} request:{}",
             bus.grant(),
@@ -229,20 +242,18 @@ impl Suzy {
     }
 
     fn manage_task(&mut self, bus: &mut Bus, dma_ram: &mut Ram) {
-        if self.registers.task_ticks_delay() > 0 {
-            self.registers.dec_task_ticks_delay();
-            return;
-        }
-
-        if self.registers.task() == SuzyTask::None && self.registers.data(SPRGO) & SPRGO_GO != 0 {
-            trace!(
-                "[SPRGO] = 0x{:02x} and bus acquired.",
-                self.registers.data(SPRGO)
+        if self.registers.has_task_steps() {
+            let sprite_task = matches!(
+                self.registers.task(),
+                SuzyTask::SpriteGo | SuzyTask::EndSprite
             );
-            self.registers
-                .sprsys_w_disable_flag(SprSysW::sprite_to_stop);
-            self.registers.set_task(SuzyTask::SpriteGo);
-            self.registers.set_task_step(TaskStep::InitializePainting);
+            if has_bus(bus) || !sprite_task {
+                self.registers.pop_task_step();
+            } else if self.bus_hold_overlap > 0 {
+                self.bus_hold_overlap -= 1;
+                self.registers.pop_task_step();
+            }
+            return;
         }
 
         if self.registers.task() != SuzyTask::None {
@@ -257,10 +268,22 @@ impl Suzy {
 
     pub fn tick(&mut self, bus: &mut Bus, dma_ram: &mut Ram) {
         self.manage_bus(bus);
-        if self.pending_bus_request_ticks >= 0 || self.registers.data(SUZYBUSEN) == 0 {
+
+        if self.registers.task() == SuzyTask::None && self.registers.data(SPRGO) & SPRGO_GO != 0 {
+            trace!("[SPRGO] = 0x{:02x} accepted.", self.registers.data(SPRGO));
+            self.registers
+                .sprsys_w_disable_flag(SprSysW::sprite_to_stop);
+            self.registers.set_task(SuzyTask::SpriteGo);
+            self.registers.set_task_step(TaskStep::InitializePainting);
+            self.registers.sprsys_r_enable_flag(SprSysR::sprite_working);
+            self.renderer.sprite_go_start();
+        }
+
+        self.manage_ir(bus);
+
+        if self.registers.data(SUZYBUSEN) == 0 {
             return;
         }
-        self.manage_ir(bus);
         self.manage_task(bus, dma_ram);
     }
 
@@ -348,6 +371,7 @@ impl Suzy {
                     self.registers
                         .set_data(SPRGO, self.registers.data(SPRGO) & !(1_u8));
                     self.registers.reset_task();
+                    self.sprite_done = true;
                 }
             }
             SuzyTask::EndSprite => {
@@ -355,8 +379,10 @@ impl Suzy {
                     return;
                 }
                 let mem_access_count = self.renderer.sprite_end(&mut self.registers, dma_ram);
-                self.registers
-                    .set_task_ticks_delay(mem_access_count * RAM_PAGE_READ_TICKS as u16);
+                self.registers.set_task_steps(
+                    StepKind::SpriteEndFetch,
+                    mem_access_count * (SUZY_RAM_READ_TICKS - 1),
+                );
                 self.registers.set_task(SuzyTask::SpriteGo);
             }
             SuzyTask::Multiply => {
@@ -376,6 +402,25 @@ impl Suzy {
     #[must_use]
     pub fn registers(&self) -> &SuzyRegisters {
         &self.registers
+    }
+
+    #[must_use]
+    pub fn sprite_engine_busy(&self) -> bool {
+        matches!(
+            self.registers.task(),
+            SuzyTask::SpriteGo | SuzyTask::EndSprite
+        )
+    }
+
+    #[must_use]
+    pub fn bus_enabled(&self) -> bool {
+        self.registers.data(SUZYBUSEN) != 0
+    }
+
+    pub fn take_sprite_done(&mut self) -> bool {
+        let done = self.sprite_done;
+        self.sprite_done = false;
+        done
     }
 
     #[must_use]

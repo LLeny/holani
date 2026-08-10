@@ -29,7 +29,7 @@ pub const RAM_NORMAL_READ_TICKS: i8 = 5 - 1;
 pub const RAM_PAGE_READ_TICKS: i8 = 4 - 1;
 pub const RAM_NORMAL_WRITE_TICKS: i8 = 5 - 1;
 
-pub const MIKEY_TIMER_READ_TICKS: u16 = 5;
+pub const MIKEY_TIMER_READ_TICKS: u16 = 12;
 pub const MIKEY_TIMER_WRITE_TICKS: u16 = 5;
 pub const MIKEY_READ_TICKS: u16 = 5;
 pub const MIKEY_WRITE_TICKS: u16 = 5;
@@ -53,12 +53,10 @@ Suzy Hardware(read)                9         15
 */
 
 pub const SUZY_WRITE_TICKS: u16 = 5;
-pub const SUZY_READ_TICKS: u16 = 11; // ~~
+pub const SUZY_READ_TICKS: u16 = 8; // ~~
 pub const SUZY_DATA_BUFFER_LEN: u16 = 1;
 // "The longest process is 30 ticks. Adding the overhead of accepting the bus request and releasing the bus grant brings the total to 40 ticks."
 pub const SUZY_BUS_GRANT_TICKS: u16 = 10;
-pub const SUZY_SPRITE_SCB_ADDITIONAL_COST: u16 = 75;
-pub const SUZY_SPRITE_VERT_ADDITIONAL_COST: u16 = 60;
 /* "
 Multiplies with out sign or accumulate take 44 ticks to complete.
 Multiplies with sign and accumulate take 54 ticks to complete.

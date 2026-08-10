@@ -14,6 +14,26 @@ pub enum LineType {
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
+pub enum PendingPacket {
+    Literal(u8),
+    Packed(u8),
+}
+
+impl PendingPacket {
+    #[must_use]
+    pub fn is_literal(&self) -> bool {
+        matches!(self, Self::Literal(_))
+    }
+
+    #[must_use]
+    pub fn count(&self) -> u8 {
+        match self {
+            Self::Literal(n) | Self::Packed(n) => *n,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SpriteData {
     shift_reg: u64,
     bits_left: u16,
@@ -21,6 +41,7 @@ pub struct SpriteData {
     repeat_count: u16,
     line_pixel: u8,
     line_type: LineType,
+    pending_packet: Option<PendingPacket>,
 }
 
 impl SpriteData {
@@ -33,6 +54,7 @@ impl SpriteData {
             repeat_count: 0,
             line_pixel: 0,
             line_type: LineType::Error,
+            pending_packet: None,
         }
     }
 
@@ -43,9 +65,14 @@ impl SpriteData {
         self.line_pixel = 0;
         self.line_type = LineType::Error;
         self.bits_left = 0xffff;
+        self.pending_packet = None;
         regs.set_tmp_addr(regs.sprdline());
 
         trace!("reset");
+    }
+
+    pub fn take_pending_packet(&mut self) -> Option<PendingPacket> {
+        self.pending_packet.take()
     }
 
     /// Initializes the sprite data with the given registers and vertical offset.
@@ -153,6 +180,7 @@ impl SpriteData {
         let mut line_pixel = self.line_pixel;
         let mut line_type = self.line_type;
         let mut repeat_count = self.repeat_count;
+        let mut pending_packet = None;
 
         let peek_or_err = |start: u16, bits: u16| -> Result<u8, &'static str> {
             self.peek_bits(start, bits)
@@ -176,6 +204,7 @@ impl SpriteData {
                     let count = peek_or_err(bit_count, 4)?;
                     bit_count += 4;
                     repeat_count = u16::from(count) + 1;
+                    pending_packet = Some(PendingPacket::Literal(count + 1));
                 }
                 LineType::Packed => {
                     let count = peek_or_err(bit_count, 4)?;
@@ -187,6 +216,7 @@ impl SpriteData {
                         let bits = peek_or_err(bit_count, bpp)?;
                         bit_count += bpp;
                         line_pixel = pens[bits as usize];
+                        pending_packet = Some(PendingPacket::Packed(count + 1));
                     }
                     repeat_count += 1;
                 }
@@ -220,6 +250,7 @@ impl SpriteData {
         self.line_pixel = line_pixel;
         self.line_type = line_type;
         self.repeat_count = repeat_count;
+        self.pending_packet = pending_packet;
         let _ = self.get_bits(bit_count);
         Ok(line_pixel)
     }

@@ -10,6 +10,7 @@ use super::{
     SPRCTL0_BPP, SPRCTL1, SPRCTL1_DRAW_QUAD, SPRDLINEL, SUZYHREV, SUZ_ADDR, SWITCHES, TILTACUML,
     VIDADRL, VSIZOFFL, TMPADRL
 };
+use super::step_queue::{StepKind, StepQueue};
 use alloc::vec::Vec;
 use bitflags::bitflags;
 
@@ -113,7 +114,7 @@ pub fn joystick_swap(mut j: Joystick, b1: Joystick, b2: Joystick) -> Joystick {
 pub struct SuzyRegisters {
     data: Vec<u8>,
     ir_ticks_delay: u16,
-    task_ticks_delay: u16,
+    task_steps: StepQueue,
     sprsys_r: SprSysR,
     sprsys_w: SprSysW,
     sign_ab: i8,
@@ -133,7 +134,7 @@ impl SuzyRegisters {
         let mut r = Self {
             data: vec![0; 0x100],
             ir_ticks_delay: 0,
-            task_ticks_delay: 0,
+            task_steps: StepQueue::default(),
             sprsys_r: SprSysR::empty(),
             sprsys_w: SprSysW::empty(),
             sign_ab: 0,
@@ -470,23 +471,29 @@ impl SuzyRegisters {
 
     #[inline]
     #[must_use]
-    pub fn task_ticks_delay(&self) -> u16 {
-        self.task_ticks_delay
+    pub fn has_task_steps(&self) -> bool {
+        !self.task_steps.is_empty()
     }
 
     #[inline]
-    pub fn set_task_ticks_delay(&mut self, ticks_delay: u16) {
-        self.task_ticks_delay = ticks_delay;
+    pub fn set_task_steps(&mut self, kind: StepKind, n: u16) {
+        self.task_steps.clear();
+        self.task_steps.push(kind, n);
     }
 
     #[inline]
-    pub fn add_task_ticks_delay(&mut self, ticks_delay: u16) {
-        self.task_ticks_delay += ticks_delay;
+    pub fn push_task_steps(&mut self, kind: StepKind, n: u16) {
+        self.task_steps.push(kind, n);
     }
 
     #[inline]
-    pub fn dec_task_ticks_delay(&mut self) {
-        self.task_ticks_delay -= 1;
+    pub fn pop_task_step(&mut self) {
+        self.task_steps.pop_front();
+    }
+
+    #[inline]
+    pub fn task_steps(&mut self) -> &mut StepQueue {
+        &mut self.task_steps
     }
 
     #[inline]

@@ -177,12 +177,11 @@ impl MikeyRegisters {
     }
 
     fn update_pen(&mut self, pen_index: u16) {
-        let bluered = self.data(BLUERED0 + pen_index) as u32;
-        let green = self.data(GREEN0 + pen_index) as u32;
+        let bluered = u32::from(self.data(BLUERED0 + pen_index));
+        let green = u32::from(self.data(GREEN0 + pen_index));
         self.palette[pen_index as usize] = 0xFF_00_00_00u32
-            | (bluered & 0xf) * 16 << 16
-            | (green & 0xf) * 16 << 8
-            | (bluered >> 4) * 16;
+            | ((bluered & 0xf) * 16) << 16
+            | ((green & 0xf) * 16) << 8 | ((bluered >> 4) * 16);
         trace!(
             "Updated pen {}: ARGB=0x{:08X}",
             pen_index, self.palette[pen_index as usize],
@@ -266,6 +265,11 @@ impl MikeyRegisters {
     #[must_use]
     pub fn dispctl(&self) -> u8 {
         self.dispctl.bits()
+    }
+
+    #[must_use]
+    pub fn dispctl_is_flag_set(&self, flag: DispCtl) -> bool {
+        self.dispctl.contains(flag)
     }
 
     pub fn set_dispctl(&mut self, v: u8) {

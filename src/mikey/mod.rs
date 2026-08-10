@@ -13,6 +13,7 @@ use crate::{
     ram, rom,
 };
 use alloc::vec::Vec;
+use bitflags::bitflags;
 use bus::{Bus, BusStatus};
 use cartridge::Cartridge;
 use consts::{
@@ -21,14 +22,14 @@ use consts::{
     IODAT_AUDIN, IODAT_CAD, IODAT_EXTPW, IODAT_NOEXP, IODAT_REST, IODIR, M6502_IRQ, M6502_NMI,
     M6502_RDY, M6502_RES, M6502_RW, M6502_SYNC, MIKEY_READ_TICKS, MIKEY_TIMER_READ_TICKS,
     MIKEY_TIMER_WRITE_TICKS, MIKEY_WRITE_TICKS, MIK_ADDR, MPAN, MSTEREO, PBKUP,
-    REFRESH_AND_VIDEO_DMA_TICKS, SERCTL, SERDAT, SYSCTL1, SYSCTL1_CAS, SYSCTL1_POWER, TIM0BKUP,
-    TIM4CTLA, VIDEO_DMA_BUFFER_LENGTH,
+    REFRESH_AND_VIDEO_DMA_TICKS, SDONEACK, SERCTL, SERDAT, SYSCTL1, SYSCTL1_CAS, SYSCTL1_POWER,
+    TIM0BKUP, TIM4CTLA, VIDEO_DMA_BUFFER_LENGTH,
 };
 use cpu::{CPUPins, M6502Flags, M6502};
 use display::Display;
 use log::trace;
 use ram::Ram;
-use registers::{MikeyRegisters, SerCtlR, SerCtlW};
+use registers::{DispCtl, MikeyRegisters, SerCtlR, SerCtlW};
 use rom::Rom;
 use serde::{Deserialize, Serialize};
 use timers::Timers;
@@ -115,14 +116,17 @@ impl VideoDMA {
         self.delay -= 1;
     }
 
+    #[must_use]
     pub fn is_ready(&self) -> bool {
         self.row_dma_count < VIDEO_DMA_PER_ROW && self.delay <= 0
     }
 
+    #[must_use]
     pub fn is_flipped(&self) -> bool {
         self.flipped_display < 0
     }
 
+    #[must_use]
     pub fn get_buffer_offset(&self, offset: usize) -> u16 {
         (offset as isize * self.flipped_display + self.ptr as isize) as u16
     }
@@ -134,6 +138,15 @@ impl VideoDMA {
         } else {
             self.ptr.wrapping_add(VIDEO_DMA_BUFFER_LENGTH)
         };
+    }
+}
+
+bitflags! {
+    #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+    struct SuzyStatus: u8 {
+        const busy         = 0b0000_0001;
+        const bus_enabled  = 0b0000_0010;
+        const done_pending = 0b0000_0100;
     }
 }
 
@@ -152,6 +165,7 @@ pub struct Mikey {
     refresh_delay: isize,
     bus_grant_bkup: Option<bool>,
     comlynx_cable_present: bool,
+    suzy_status: SuzyStatus,
 }
 
 impl Mikey {
@@ -171,6 +185,7 @@ impl Mikey {
             bus_request: None,
             bus_grant_bkup: None,
             comlynx_cable_present: false,
+            suzy_status: SuzyStatus::bus_enabled,
         }
     }
 
@@ -184,6 +199,16 @@ impl Mikey {
         self.video_dma.reset();
         self.bus_owner = MikeyBusOwner::Cpu;
         self.uart.reset();
+        self.suzy_status = SuzyStatus::bus_enabled;
+    }
+
+    pub fn set_suzy_state(&mut self, busy: bool, bus_enabled: bool) {
+        self.suzy_status.set(SuzyStatus::busy, busy);
+        self.suzy_status.set(SuzyStatus::bus_enabled, bus_enabled);
+    }
+
+    pub fn on_suzy_done(&mut self) {
+        self.suzy_status.insert(SuzyStatus::done_pending);
     }
 
     pub fn cpu_prefetch(&mut self, pc: u16, rom: &mut Rom) {
@@ -209,6 +234,7 @@ impl Mikey {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn tick(&mut self, bus: &mut Bus, cart: &mut Cartridge, dma_ram: &Ram) {
         self.ticks += 1;
 
@@ -239,8 +265,10 @@ impl Mikey {
         self.display.tick(&self.registers);
         self.video_dma.tick();
 
-        if self.display.is_dma_active() {
-            if self.video_dma.is_ready() && self.cpu_pins.is_set(M6502_SYNC) {
+        if self.display.is_dma_active()
+            && self.registers.dispctl_is_flag_set(DispCtl::dma_enable)
+        {
+            if self.video_dma.is_ready() {
                 self.bus_request = Some(MikeyBusOwner::RefreshAndVideo);
                 self.video_dma.request();
             }
@@ -294,7 +322,7 @@ impl Mikey {
                     }
                 }
                 _ => (),
-            };
+            }
         }
 
         match bus.requester() {
@@ -309,6 +337,7 @@ impl Mikey {
                 self.registers.set_ticks_delay(REFRESH_AND_VIDEO_DMA_TICKS);
                 bus.set_requester(None);
                 trace!("[{}] Video/Refresh taking bus.", self.ticks);
+                return;
             }
             _ => (),
         }
@@ -322,9 +351,9 @@ impl Mikey {
                 }
 
                 if bus.grant() {
-                    self.cpu_pins.pin_off(M6502_RDY)
+                    self.cpu_pins.pin_off(M6502_RDY);
                 } else {
-                    self.cpu_pins.pin_on(M6502_RDY)
+                    self.cpu_pins.pin_on(M6502_RDY);
                 }
 
                 if self.registers.ir() != MikeyInstruction::None {
@@ -477,6 +506,11 @@ impl Mikey {
                 self.registers.set_addr_r(addr);
                 self.registers.set_data_r(u16::from(bus.data()));
                 self.registers.set_ir(MikeyInstruction::PokeSysctl1);
+                self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
+            }
+            SDONEACK => {
+                self.suzy_status.remove(SuzyStatus::done_pending);
+                self.registers.set_ir(MikeyInstruction::PokeOk);
                 self.registers.set_ticks_delay(MIKEY_WRITE_TICKS);
             }
             CPUSLEEP => {
@@ -636,7 +670,15 @@ impl Mikey {
             }
             MikeyInstruction::CpuSleep => {
                 self.registers.reset_ir();
-                bus.set_grant(false);
+                if self.registers.data_r() == 0
+                    && self
+                        .suzy_status
+                        .contains(SuzyStatus::busy | SuzyStatus::bus_enabled)
+                    && !self.suzy_status.contains(SuzyStatus::done_pending)
+                    && self.registers.data(INTSET) == 0
+                {
+                    bus.set_grant(false);
+                }
                 bus.set_status(BusStatus::PokeDone);
             }
             MikeyInstruction::PeekDispCtl => {

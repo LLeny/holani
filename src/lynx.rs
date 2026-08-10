@@ -261,6 +261,10 @@ impl Lynx {
         self.rom.tick(&mut self.bus);
         self.vectors.tick(&mut self.bus);
         self.suzy.tick(&mut self.bus, &mut self.ram);
+        self.mikey.set_suzy_state(self.suzy.sprite_engine_busy(), self.suzy.bus_enabled());
+        if self.suzy.take_sprite_done() {
+            self.mikey.on_suzy_done();
+        }
         let mut switches = self.switches_cache;
         self.cart
             .tick(&mut self.bus, self.mikey.registers_mut(), &mut switches);

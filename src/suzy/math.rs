@@ -1,5 +1,6 @@
 use log::trace;
 
+use super::step_queue::StepKind;
 use super::SuzyRegisters;
 use crate::{
     consts::{MATHA, MATHC, MATHE, MATHL, MATHM, SUZY_MULT_NON_SIGN_TICKS, SUZY_MULT_SIGN_TICKS},
@@ -110,13 +111,13 @@ pub fn set_matha(regs: &mut SuzyRegisters) {
         let (v, s) = convert_sign(regs.ab());
         regs.set_ab(v);
         regs.set_sign_ab(s);
-        regs.set_task_ticks_delay(SUZY_MULT_SIGN_TICKS);
+        regs.set_task_steps(StepKind::MathMultiply, SUZY_MULT_SIGN_TICKS);
     } else if regs.sprsys_w_is_flag_set(SprSysW::accumulate) {
         regs.set_sign_ab(1);
-        regs.set_task_ticks_delay(SUZY_MULT_SIGN_TICKS);
+        regs.set_task_steps(StepKind::MathMultiply, SUZY_MULT_SIGN_TICKS);
     } else {
         regs.set_sign_ab(1);
-        regs.set_task_ticks_delay(SUZY_MULT_NON_SIGN_TICKS);
+        regs.set_task_steps(StepKind::MathMultiply, SUZY_MULT_NON_SIGN_TICKS);
     }
     regs.backup_cd();
     regs.sprsys_r_enable_flag(SprSysR::math_working);
@@ -142,7 +143,10 @@ pub fn set_mathe(regs: &mut SuzyRegisters) {
     regs.set_data(MATHE, regs.data_r() as u8);
     regs.sprsys_r_enable_flag(SprSysR::math_working);
     // "Divides take 176 + 14*N ticks where N is the number of most significant zeros in the divisor."
-    regs.set_task_ticks_delay(176_u16 + 14 * regs.np().leading_zeros() as u16);
+    regs.set_task_steps(
+        StepKind::MathDivide,
+        176_u16 + 14 * regs.np().leading_zeros() as u16,
+    );
     regs.reset_ir();
 }
 
