@@ -164,6 +164,7 @@ impl Lynx {
                 if self.mmap_ram(MAPCTL_SUZ_BIT) {
                     self.ram.peek(&self.bus);
                 } else {
+                    self.ram.dirty_page();
                     self.suzy.peek(&mut self.bus);
                 }
             }
@@ -171,6 +172,7 @@ impl Lynx {
                 if self.mmap_ram(MAPCTL_MIK_BIT) {
                     self.ram.peek(&self.bus);
                 } else {
+                    self.ram.dirty_page();
                     self.mikey.peek(&self.bus);
                 }
             }
@@ -178,6 +180,7 @@ impl Lynx {
                 if self.mmap_ram(MAPCTL_ROM_BIT) {
                     self.ram.peek(&self.bus);
                 } else {
+                    self.ram.dirty_page();
                     self.rom.peek(&self.bus);
                 }
             }
@@ -186,6 +189,7 @@ impl Lynx {
                 if self.mmap_ram(MAPCTL_VEC_BIT) {
                     self.ram.peek(&self.bus);
                 } else {
+                    self.ram.dirty_page();
                     self.vectors.peek(&self.bus);
                 }
             }
