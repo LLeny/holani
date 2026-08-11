@@ -1,5 +1,5 @@
 use super::{
-    alloc, uart, Deserialize, MikeyInstruction, Serialize, Uart, ATTEN_A, ATTEN_B, ATTEN_C,
+    alloc, Deserialize, MikeyInstruction, Serialize, Uart, ATTEN_A, ATTEN_B, ATTEN_C,
     ATTEN_D, BLUERED0, BLUEREDF, DISPADR, GREEN0, GREENF, MIK_ADDR, MPAN, MSTEREO,
 };
 use alloc::vec::Vec;
@@ -289,10 +289,7 @@ impl MikeyRegisters {
             None => SerCtlW::empty(),
         };
 
-        if brk && !self.serctl_w_is_flag_set(SerCtlW::tx_brk) {
-            //Set redeye to high if break has been disabled
-            uart.set_redeye_pin(uart::redeye_status::RedeyeStatus::High);
-        }
+        uart.set_tx_brk(brk, self);
 
         if self.serctl_w_is_flag_set(SerCtlW::reset_err) {
             self.serctl_r_disable_flag(SerCtlR::par_err);

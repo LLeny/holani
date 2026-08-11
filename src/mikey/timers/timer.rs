@@ -108,7 +108,7 @@ impl Timer {
         self.control_b &= !CTRLB_TIMER_DONE_BIT;
     }
 
-    pub fn set_control_a(&mut self, value: u8) {
+    pub fn set_control_a(&mut self, value: u8) -> bool {
         const TICKS_COUNT: [Option<u16>; 8] = [
             Some(TIMER_TICKS_COUNT * u16::pow(2, 0)),
             Some(TIMER_TICKS_COUNT * u16::pow(2, 1)),
@@ -120,6 +120,7 @@ impl Timer {
             None, // 7 (linked timer)
         ];
 
+        let previous = self.control_a;
         self.control_a = value;
         self.clock_ticks = TICKS_COUNT[self.period() as usize];
         if value & CTRLA_RESET_DONE_BIT != 0 {
@@ -130,14 +131,24 @@ impl Timer {
         self.count_enabled = self.control_a & CTRLA_ENABLE_COUNT_BIT != 0;
         self.reload_enabled = value & CTRLA_ENABLE_RELOAD_BIT != 0;
 
+        let prescaler_changed = previous & CTRLA_PERIOD_BIT != value & CTRLA_PERIOD_BIT;
+        let count_enable_rising =
+            previous & CTRLA_ENABLE_COUNT_BIT == 0 && value & CTRLA_ENABLE_COUNT_BIT != 0;
+
+        let mut resynced = true;
         if !self.is_linked && self.count_enabled {
-            self.tick_countdown = self.clock_ticks.unwrap() / 2;
-            trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
+            if prescaler_changed || count_enable_rising {
+                self.tick_countdown = self.clock_ticks.unwrap() / 2;
+                trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
+            } else {
+                resynced = false;
+            }
         } else {
             self.tick_countdown = 0;
         }
 
         trace!("Timer {self:?}");
+        resynced
     }
 
     pub fn set_control_a_transaprent(&mut self, value: u8) {
@@ -179,7 +190,7 @@ impl Timer {
     pub fn set_count(&mut self, value: u8) {
         trace!("Timer #{} count = {}.", self.id, value);
         self.count = value;
-        if !self.is_linked && self.count_enabled && value != 0 {
+        if !self.is_linked && self.count_enabled {
             self.tick_countdown = self.clock_ticks.unwrap() / 2;
             trace!("Timer #{} next trigger @ {}", self.id, self.tick_countdown);
         }

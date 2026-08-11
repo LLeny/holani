@@ -273,8 +273,9 @@ impl Timers {
                 }
             }
             TimerReg::ControlA => {
-                self.timer[index].set_control_a(v);
-                self.update_timer_countdown(index);
+                if self.timer[index].set_control_a(v) {
+                    self.update_timer_countdown(index);
+                }
             }
             TimerReg::Count => {
                 self.timer[index].set_count(v);
