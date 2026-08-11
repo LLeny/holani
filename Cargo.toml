@@ -1,6 +1,6 @@
 [package]
 name = "holani"
-version = "0.9.9"
+version = "1.0.0"
 rust-version = "1.84"
 edition = "2021"
 license-file = "LICENSE"
